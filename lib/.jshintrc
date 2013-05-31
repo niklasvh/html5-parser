@@ -9,5 +9,6 @@
   "undef": true,
   "boss": true,
   "eqnull": true,
-  "predef": ["exports"]
+  "onecase": true,
+  "predef": ["exports", "console"]
 }

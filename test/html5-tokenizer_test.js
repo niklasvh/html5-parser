@@ -1,6 +1,7 @@
 'use strict';
 
-var html5_tokenizer = require('../lib/html5-tokenizer.js');
+var html5_tokenizer = require('../lib/html5-tokenizer.js'),
+    fs = require('fs');
 
 /*
   ======== A Handy Little Nodeunit Reference ========
@@ -23,14 +24,19 @@ var html5_tokenizer = require('../lib/html5-tokenizer.js');
 */
 
 exports['awesome'] = {
-  setUp: function(done) {
-    // setup here
-    done();
-  },
-  'no args': function(test) {
-    test.expect(1);
-    // tests here
-    test.equal(html5_tokenizer.awesome(), 'awesome', 'should be awesome.');
-    test.done();
-  }
+    setUp: function(done) {
+        // setup here
+        done();
+    },
+    'tokenizer': function(test) {
+        var testFile = JSON.parse(fs.readFileSync("test/html5lib-tests/tokenizer/test1.test"));
+        test.expect(testFile.tests.length);
+        testFile.tests.forEach(function(testCase) {
+            console.log(testCase.input, testCase.output);
+            test.deepEqual(html5_tokenizer.tokenizer(testCase.input), testCase.output, testCase.description);
+        });
+
+
+        test.done();
+    }
 };
