@@ -38,7 +38,7 @@ tests.forEach(function(file) {
         var testFile = JSON.parse(fs.readFileSync(path + file));
         test.expect(testFile.tests.length);
         testFile.tests.forEach(function(testCase) {
-            console.log(testCase.input, testCase.output);
+        //    console.log(testCase.input, testCase.output);
             test.deepEqual(html5_tokenizer.tokenizer(testCase.input), testCase.output, testCase.description);
         });
 
