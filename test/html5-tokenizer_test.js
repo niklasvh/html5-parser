@@ -23,20 +23,25 @@ var html5_tokenizer = require('../lib/html5-tokenizer.js'),
     test.ifError(value)
 */
 
-exports['awesome'] = {
+exports['tokenizer'] = {
     setUp: function(done) {
         // setup here
         done();
-    },
-    'tokenizer': function(test) {
-        var testFile = JSON.parse(fs.readFileSync("test/html5lib-tests/tokenizer/test1.test"));
+    }
+};
+
+var path = "test/html5lib-tests/tokenizer/";
+var tests = fs.readdirSync(path);
+
+tests.forEach(function(file) {
+    exports.tokenizer[file] = function(test) {
+        var testFile = JSON.parse(fs.readFileSync(path + file));
         test.expect(testFile.tests.length);
         testFile.tests.forEach(function(testCase) {
             console.log(testCase.input, testCase.output);
             test.deepEqual(html5_tokenizer.tokenizer(testCase.input), testCase.output, testCase.description);
         });
 
-
         test.done();
-    }
-};
+    };
+});
