@@ -32,6 +32,23 @@ exports['tokenizer'] = {
 
 var path = "test/html5lib-tests/tokenizer/";
 var tests = fs.readdirSync(path);
+var doubleEscape = /\\u([\d\w]{4})/gi;
+
+function escapeDouble(match, grp) {
+    return String.fromCharCode(parseInt(grp, 16));
+}
+
+function escapeDoubleResults(results, escape) {
+    if (!escape) {
+        return results;
+    }
+
+    return results.map(function(result) {
+        return  (Array.isArray(result)) ? result.map(function(txt) {
+            return txt.replace(doubleEscape, escapeDouble);
+          }) : result;
+    });
+}
 
 tests.forEach(function(file) {
     exports.tokenizer[file] = function(test) {
@@ -57,7 +74,7 @@ tests.forEach(function(file) {
             if (testCase.lastStartTag) {
                 options.lastStartTag = testCase.lastStartTag;
             }
-            test.deepEqual(html5_parser.tokenizer(testCase.input, options), testCase.output, testCase.description);
+            test.deepEqual(html5_parser.tokenizer(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
         });
         test.done();
     };
