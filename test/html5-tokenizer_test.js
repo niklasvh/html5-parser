@@ -1,6 +1,6 @@
 'use strict';
 
-var html5_tokenizer = require('../lib/html5-tokenizer.js'),
+var html5_parser = require('../lib/html5-tokenizer.js'),
     fs = require('fs');
 
 /*
@@ -38,10 +38,27 @@ tests.forEach(function(file) {
         var testFile = JSON.parse(fs.readFileSync(path + file));
         test.expect(testFile.tests.length);
         testFile.tests.forEach(function(testCase) {
-        //    console.log(testCase.input, testCase.output);
-            test.deepEqual(html5_tokenizer.tokenizer(testCase.input), testCase.output, testCase.description);
+            var options = {};
+            if (testCase.initialStates) {
+                switch(testCase.initialStates[testCase.initialStates.length -1]) {
+                    case "RCDATA state":
+                        options.initialState = html5_parser.tokenizerStates.RCDATA;
+                        break;
+                    case "RAWTEXT state":
+                        options.initialState = html5_parser.tokenizerStates.rawtext;
+                        break;
+                    case "PLAINTEXT state":
+                        options.initialState = html5_parser.tokenizerStates.plaintext;
+                        break;
+                    default:
+                        console.log("unmapped initial state", testCase.initialStates[testCase.initialStates.length -1]);
+                }
+            }
+            if (testCase.lastStartTag) {
+                options.lastStartTag = testCase.lastStartTag;
+            }
+            test.deepEqual(html5_parser.tokenizer(testCase.input, options), testCase.output, testCase.description);
         });
-
         test.done();
     };
 });
