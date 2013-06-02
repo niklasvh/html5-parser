@@ -1,6 +1,6 @@
 {
-  "name": "html5-tokenizer",
-  "description": "html5 tokenizer for nodejs and browsers",
+  "name": "html5-parser",
+  "description": "html5 parser for node.js and browsers",
   "version": "0.1.0",
   "homepage": "https://github.com/niklasvh/html5-tokenizer",
   "author": {
