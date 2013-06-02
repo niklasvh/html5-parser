@@ -53,6 +53,10 @@ function escapeDoubleResults(results, escape) {
 tests.forEach(function(file) {
     exports.tokenizer[file] = function(test) {
         var testFile = JSON.parse(fs.readFileSync(path + file));
+        if (testFile.xmlViolationTests) {
+            test.done();
+            return;
+        }
         test.expect(testFile.tests.length);
         testFile.tests.forEach(function(testCase) {
             var options = {};
