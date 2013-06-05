@@ -1,6 +1,6 @@
 'use strict';
 
-var html5_parser = require('../lib/html5-tokenizer.js'),
+var html5_parser = require('../lib/tokenizer.js'),
     fs = require('fs');
 
 /*
@@ -59,7 +59,9 @@ tests.forEach(function(file) {
         }
         test.expect(testFile.tests.length);
         testFile.tests.forEach(function(testCase) {
-            var options = {};
+            var options = {
+                type: "tokens"
+            };
             if (testCase.initialStates) {
                 switch(testCase.initialStates[testCase.initialStates.length -1]) {
                     case "RCDATA state":
@@ -78,7 +80,7 @@ tests.forEach(function(file) {
             if (testCase.lastStartTag) {
                 options.lastStartTag = testCase.lastStartTag;
             }
-            test.deepEqual(html5_parser.tokenizer(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
+            test.deepEqual(html5_parser.parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
         });
         test.done();
     };
