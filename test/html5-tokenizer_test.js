@@ -80,7 +80,7 @@ tests.forEach(function(file) {
             if (testCase.lastStartTag) {
                 options.lastStartTag = testCase.lastStartTag;
             }
-            test.deepEqual(html5_parser.parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
+            test.deepEqual(new html5_parser.Parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
         });
         test.done();
     };
