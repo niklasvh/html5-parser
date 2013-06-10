@@ -30,8 +30,13 @@ exports['tokenizer'] = {
     }
 };
 
-var path = "test/html5lib-tests/tokenizer/";
-var tests = fs.readdirSync(path);
+exports['treeConstruction'] = {
+    setUp: function(done) {
+        // setup here
+        done();
+    }
+};
+
 var doubleEscape = /\\u([\d\w]{4})/gi;
 
 function escapeDouble(match, grp) {
@@ -50,38 +55,112 @@ function escapeDoubleResults(results, escape) {
     });
 }
 
-tests.forEach(function(file) {
-    exports.tokenizer[file] = function(test) {
-        var testFile = JSON.parse(fs.readFileSync(path + file));
-        if (testFile.xmlViolationTests) {
-            test.done();
-            return;
+function indent(chr, len) {
+    var result = "";
+    for (var i = 0; i < len; i++) {
+        result += chr;
+    }
+    return result;
+}
+
+function serializeTree(tree, indentAmount) {
+    var html = "";
+    tree.forEach(function(token) {
+        switch(token.type) {
+            case "Element":
+                html += indent(" ", indentAmount) + "<" + token.tagName + ">|";
+                html += serializeTree(token.children, indentAmount + 2);
+                break;
+            case "Character":
+                html +=  indent(" ", indentAmount) + '"' + token.text + '"|';
+                break;
+            case "Comment":
+
+                break;
         }
-        test.expect(testFile.tests.length);
-        testFile.tests.forEach(function(testCase) {
-            var options = {
-                type: "tokens"
+    });
+
+    return html;
+}
+
+function createTreeTest(buffer) {
+    var lines = buffer.toString().split(/\r\n|\r|\n/g);
+    var tests = [];
+    var test = null;
+
+    for (var i = 0, len = lines.length; i < len; i++) {
+        if (lines[i] === "#data") {
+            test = {
+                data: lines[++i],
+                result: ""
             };
-            if (testCase.initialStates) {
-                switch(testCase.initialStates[testCase.initialStates.length -1]) {
-                    case "RCDATA state":
-                        options.initialState = html5_parser.tokenizerStates.RCDATA;
-                        break;
-                    case "RAWTEXT state":
-                        options.initialState = html5_parser.tokenizerStates.rawtext;
-                        break;
-                    case "PLAINTEXT state":
-                        options.initialState = html5_parser.tokenizerStates.plaintext;
-                        break;
-                    default:
-                        console.log("unmapped initial state", testCase.initialStates[testCase.initialStates.length -1]);
+        } else if (lines[i] === "#document") {
+            while(lines[++i].length) {
+                test.result += lines[i].substring(2) + "|";
+            }
+            tests.push(test);
+        }
+    }
+    return tests;
+}
+
+(function(path) {
+    fs.readdirSync(path).forEach(function(file) {
+        exports.tokenizer[file] = function(test) {
+            var testFile = JSON.parse(fs.readFileSync(path + file));
+            if (testFile.xmlViolationTests) {
+                test.done();
+                return;
+            }
+            test.expect(testFile.tests.length);
+            testFile.tests.forEach(function(testCase) {
+                var options = {
+                    type: "tokens"
+                };
+                if (testCase.initialStates) {
+                    switch(testCase.initialStates[testCase.initialStates.length -1]) {
+                        case "RCDATA state":
+                            options.initialState = html5_parser.tokenizerStates.RCDATA;
+                            break;
+                        case "RAWTEXT state":
+                            options.initialState = html5_parser.tokenizerStates.rawtext;
+                            break;
+                        case "PLAINTEXT state":
+                            options.initialState = html5_parser.tokenizerStates.plaintext;
+                            break;
+                        default:
+                            console.log("unmapped initial state", testCase.initialStates[testCase.initialStates.length -1]);
+                    }
                 }
-            }
-            if (testCase.lastStartTag) {
-                options.lastStartTag = testCase.lastStartTag;
-            }
-            test.deepEqual(new html5_parser.Parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
-        });
-        test.done();
-    };
-});
+                if (testCase.lastStartTag) {
+                    options.lastStartTag = testCase.lastStartTag;
+                }
+                test.deepEqual(new html5_parser.Parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
+            });
+            test.done();
+        };
+    });
+})("test/html5lib-tests/tokenizer/");
+
+
+(function(path) {
+    fs.readdirSync(path).filter(function(name) {
+        return name === "inbody01.dat";
+    }).forEach(function(file) {
+        exports.treeConstruction[file] = function(test) {
+            var testFile = fs.readFileSync(path + file);
+            var tests = createTreeTest(testFile);
+            test.expect(tests.length);
+
+            var options = {
+                type: "tree"
+            };
+
+            tests.forEach(function(testCase) {
+                test.deepEqual(serializeTree(new html5_parser.Parser(testCase.data, options), 0), testCase.result, testCase.data);
+            });
+
+            test.done();
+        };
+    });
+})("test/html5lib-tests/tree-construction/");
