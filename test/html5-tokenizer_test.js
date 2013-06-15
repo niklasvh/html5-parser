@@ -68,14 +68,18 @@ function serializeTree(tree, indentAmount) {
     tree.forEach(function(token) {
         switch(token.type) {
             case "Element":
-                html += indent(" ", indentAmount) + "<" + token.tagName + ">|";
+                html += indent(" ", indentAmount) + "<" + (token.namespace === html5_parser.namespace.HTML ? "" : "svg ") + token.tagName + ">|";
+                Object.keys(token.attributes).forEach(function(key) {
+                    html += indent(" ", indentAmount + 2) + key + '="' + token.attributes[key] + '"|';
+                });
                 html += serializeTree(token.children, indentAmount + 2);
                 break;
             case "Character":
                 html +=  indent(" ", indentAmount) + '"' + token.text + '"|';
                 break;
             case "Comment":
-
+                html += indent(" ", indentAmount) + '"<!--"|';
+                html += indent(" ", indentAmount - 2) + '"-->"|';
                 break;
         }
     });
@@ -145,7 +149,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return name === "inbody01.dat";
+        return name === "inbody01.dat" || name === "tables01.dat";
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
