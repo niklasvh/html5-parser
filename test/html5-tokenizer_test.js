@@ -63,12 +63,23 @@ function indent(chr, len) {
     return result;
 }
 
+function getNamespace(namespace) {
+    switch(namespace) {
+        case html5_parser.namespace.HTML:
+            return "";
+        case html5_parser.namespace.SVG:
+            return "svg ";
+        case html5_parser.namespace.MathML:
+            return "math ";
+    }
+}
+
 function serializeTree(tree, indentAmount) {
     var html = "";
     tree.forEach(function(token) {
         switch(token.type) {
             case "Element":
-                html += indent(" ", indentAmount) + "<" + (token.namespace === html5_parser.namespace.HTML ? "" : "svg ") + token.tagName + ">|";
+                html += indent(" ", indentAmount) + "<" + getNamespace(token.namespace) + token.tagName + ">|";
                 if (typeof(token.attributes) === "object") {
                     Object.keys(token.attributes).forEach(function(key) {
                         html += indent(" ", indentAmount + 2) + key + '="' + token.attributes[key] + '"|';
@@ -155,7 +166,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat" || name === "tests17.dat" || name === "tests18.dat";
+        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat" || name === "tests17.dat" || name === "tests18.dat" || name === "tests20.dat";
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
