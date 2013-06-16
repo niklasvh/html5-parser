@@ -83,8 +83,9 @@ function serializeTree(tree, indentAmount) {
                 html +=  indent(" ", indentAmount) + '"' + token.text + '"|';
                 break;
             case "Comment":
-                html += indent(" ", indentAmount) + '"<!--"|';
-                html += indent(" ", indentAmount - 2) + '"-->"|';
+                html += indent(" ", indentAmount) + '<!-- ';
+                html += token.data;
+                html += indent(" ", indentAmount - 2) + ' -->|';
                 break;
         }
     });
@@ -154,7 +155,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat";
+        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat" || name === "tests17.dat" || name === "tests18.dat";
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
