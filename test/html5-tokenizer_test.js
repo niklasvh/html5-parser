@@ -166,7 +166,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat" || name === "tests17.dat" || name === "tests18.dat" || name === "tests20.dat";
+        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat" || name === "tests17.dat" || name === "tests18.dat" || name === "tests25.dat" || name === "tests20.dat";
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
