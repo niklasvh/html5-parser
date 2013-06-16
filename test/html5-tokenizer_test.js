@@ -108,6 +108,7 @@ function createTreeTest(buffer) {
     var lines = buffer.toString().split(/\r\n|\r|\n/g);
     var tests = [];
     var test = null;
+    var collectingData = false;
 
     for (var i = 0, len = lines.length; i < len; i++) {
         if (lines[i] === "#data") {
@@ -115,11 +116,17 @@ function createTreeTest(buffer) {
                 data: lines[++i],
                 result: ""
             };
+            collectingData = true;
         } else if (lines[i] === "#document") {
+            collectingData = false;
             while(lines[++i].length) {
                 test.result += lines[i].substring(2) + "|";
             }
             tests.push(test);
+        } else if (lines[i][0] === "#") {
+            collectingData = false;
+        } else if (collectingData) {
+            test.result += lines[i];
         }
     }
     return tests;
@@ -166,7 +173,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return name === "inbody01.dat" || name === "tables01.dat" || name === "tests14.dat" || name === "tests17.dat" || name === "tests18.dat" || name === "tests25.dat" || name === "tests20.dat";
+        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
