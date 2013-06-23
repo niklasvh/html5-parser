@@ -114,19 +114,22 @@ function createTreeTest(buffer) {
         if (lines[i] === "#data") {
             test = {
                 data: lines[++i],
-                result: ""
+                result: "",
+                fragment: null
             };
             collectingData = true;
+        } else if(lines[i] === "#document-fragment") {
+            test.fragment = lines[++i];
         } else if (lines[i] === "#document") {
             collectingData = false;
             while(lines[++i].length) {
                 test.result += lines[i].substring(2) + "|";
             }
             tests.push(test);
-        } else if (lines[i][0] === "#") {
+        } else if (lines[i].charAt(0) === "#") {
             collectingData = false;
         } else if (collectingData) {
-            test.result += lines[i];
+            test.data += lines[i];
         }
     }
     return tests;
@@ -173,18 +176,22 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
+        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests4.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
             var tests = createTreeTest(testFile);
             test.expect(tests.length);
 
-            var options = {
-                type: "tree"
-            };
-
             tests.forEach(function(testCase) {
+                var options = {
+                    type: "tree"
+                };
+
+                if (testCase.fragment) {
+                    options.fragment = testCase.fragment;
+                }
+
                 test.deepEqual(serializeTree(new html5_parser.Parser(testCase.data, options), 0), testCase.result, testCase.data);
             });
 
