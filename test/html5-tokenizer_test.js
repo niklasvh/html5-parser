@@ -79,24 +79,28 @@ function serializeTree(tree, indentAmount) {
     tree.forEach(function(token) {
         switch(token.type) {
             case "Element":
-                html += indent(" ", indentAmount) + "<" + getNamespace(token.namespace) + token.tagName + ">|";
+                html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespace) + token.tagName + ">";
                 if (typeof(token.attributes) === "object") {
                     Object.keys(token.attributes).forEach(function(key) {
-                        html += indent(" ", indentAmount + 2) + key + '="' + token.attributes[key] + '"|';
+                        html += "| " + indent(" ", indentAmount + 2) + key + '="' + token.attributes[key] + '"';
                     });
                 }
                 html += serializeTree(token.children, indentAmount + 2);
                 break;
             case "DOCTYPE":
-                html +=  indent(" ", indentAmount) + '<!DOCTYPE ' + token.name + '>|';
+                html +=  "| " + indent(" ", indentAmount) + '<!DOCTYPE ' + token.name;
+                if (token.publicId || token.systemId) {
+                    html += ' "' + (token.publicId || "") + '" "' + (token.systemId || "") + '"';
+                }
+                html += '>';
                 break;
             case "Character":
-                html +=  indent(" ", indentAmount) + '"' + token.text + '"|';
+                html +=  "| " + indent(" ", indentAmount) + '"' + token.text.replace(/\n/g, "") + '"';
                 break;
             case "Comment":
-                html += indent(" ", indentAmount) + '<!-- ';
+                html += "| " + indent(" ", indentAmount) + '<!-- ';
                 html += token.data;
-                html += indent(" ", indentAmount - 2) + ' -->|';
+                html += indent(" ", indentAmount - 2) + ' -->';
                 break;
         }
     });
@@ -123,13 +127,13 @@ function createTreeTest(buffer) {
         } else if (lines[i] === "#document") {
             collectingData = false;
             while(lines[++i].length) {
-                test.result += lines[i].substring(2) + "|";
+                test.result += lines[i];
             }
             tests.push(test);
         } else if (lines[i].charAt(0) === "#") {
             collectingData = false;
         } else if (collectingData) {
-            test.data += lines[i];
+            test.data += "\n" + lines[i];
         }
     }
     return tests;
@@ -176,7 +180,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests4.dat", "tests5.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
+        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
