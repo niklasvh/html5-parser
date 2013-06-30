@@ -74,6 +74,10 @@ function getNamespace(namespace) {
     }
 }
 
+function namespaceAttribute(namespace, key) {
+    return (namespace !== html5_parser.namespace.HTML) ? key.replace(":", " ") : key;
+}
+
 function serializeTree(tree, indentAmount) {
     var html = "";
     tree.forEach(function(token) {
@@ -81,8 +85,8 @@ function serializeTree(tree, indentAmount) {
             case "Element":
                 html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespace) + token.tagName + ">";
                 if (typeof(token.attributes) === "object") {
-                    Object.keys(token.attributes).forEach(function(key) {
-                        html += "| " + indent(" ", indentAmount + 2) + key + '="' + token.attributes[key] + '"';
+                    Object.keys(token.attributes).sort().forEach(function(key) {
+                        html += "| " + indent(" ", indentAmount + 2) + namespaceAttribute(token.namespace, key) + '="' + token.attributes[key] + '"';
                     });
                 }
                 html += serializeTree(token.children, indentAmount + 2);
@@ -180,7 +184,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests8.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
+        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests8.dat", "tests9.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
