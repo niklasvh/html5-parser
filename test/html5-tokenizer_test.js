@@ -104,7 +104,7 @@ function serializeTree(tree, indentAmount) {
             case "Comment":
                 html += "| " + indent(" ", indentAmount) + '<!-- ';
                 html += token.data;
-                html += indent(" ", indentAmount - 2) + ' -->';
+                html += ' -->';
                 break;
         }
     });
@@ -184,7 +184,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests8.dat", "tests9.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
+        return ["inbody01.dat", "tables01.dat", "main-element.dat", "tests2.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests8.dat", "tests9.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "webkit02.dat", "tests24.dat", "tests25.dat"].indexOf(name) !== -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
