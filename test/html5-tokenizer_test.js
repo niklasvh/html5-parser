@@ -185,7 +185,7 @@ function createTreeTest(buffer) {
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
         return ["comments01.dat", "doctype01.dat", "domjs-unsafe.dat", "inbody01.dat", "tables01.dat", "main-element.dat",
-            "tests2.dat",  "tests3.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests8.dat", "tests9.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "tests24.dat", "tests25.dat", "webkit02.dat"].indexOf(name) !== -1;
+            "tests2.dat",  "tests3.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests7.dat", "tests8.dat", "tests9.dat", "tests14.dat", "tests17.dat", "tests18.dat", "tests20.dat", "tests24.dat", "tests25.dat", "webkit02.dat"].indexOf(name) !== -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
