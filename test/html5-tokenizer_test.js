@@ -89,7 +89,12 @@ function serializeTree(tree, indentAmount) {
                         html += "| " + indent(" ", indentAmount + 2) + namespaceAttribute(token.namespace, key) + '="' + token.attributes[key] + '"';
                     });
                 }
-                html += serializeTree(token.children, indentAmount + 2);
+                if (token.tagName === "template") {
+                    html += "| " + indent(" ", indentAmount + 2) + "content";
+                    html += serializeTree(token.children, indentAmount + 4);
+                } else {
+                    html += serializeTree(token.children, indentAmount + 2);
+                }
                 break;
             case "DOCTYPE":
                 html +=  "| " + indent(" ", indentAmount) + '<!DOCTYPE ' + token.name;
@@ -99,7 +104,7 @@ function serializeTree(tree, indentAmount) {
                 html += '>';
                 break;
             case "Character":
-                html +=  "| " + indent(" ", indentAmount) + '"' + token.text.replace(/\n/g, "") + '"';
+                html +=  "| " + indent(" ", indentAmount) + '"' + token.text.replace(/(\n|\r)/g, "") + '"';
                 break;
             case "Comment":
                 html += "| " + indent(" ", indentAmount) + '<!-- ';
@@ -121,7 +126,7 @@ function createTreeTest(buffer) {
     for (var i = 0, len = lines.length; i < len; i++) {
         if (lines[i] === "#data") {
             test = {
-                data: lines[++i],
+                data: (lines[++i] !== "#errors") ? lines[i] : "",
                 result: "",
                 fragment: null
             };
@@ -130,7 +135,7 @@ function createTreeTest(buffer) {
             test.fragment = lines[++i];
         } else if (lines[i] === "#document") {
             collectingData = false;
-            while(lines[++i].length) {
+            while(lines[++i].length || (lines[i+1] && lines[i+1].charAt(0) === '"')) {
                 test.result += lines[i];
             }
             tests.push(test);
@@ -184,8 +189,7 @@ function createTreeTest(buffer) {
 
 (function(path) {
     fs.readdirSync(path).filter(function(name) {
-        return ["adoption01.dat", "adoption02.dat", "comments01.dat", "doctype01.dat", "domjs-unsafe.dat", "inbody01.dat", "tables01.dat", "main-element.dat",
-            "tests1.dat", "tests2.dat",  "tests3.dat", "tests4.dat", "tests5.dat", "tests6.dat", "tests7.dat", "tests8.dat", "tests9.dat", "tests10.dat", "tests11.dat", "tests12.dat", "tests14.dat", "tests15.dat", "tests16.dat", "tests17.dat", "tests18.dat", "tests19.dat", "tests20.dat", "tests21.dat", "tests22.dat", "tests23.dat", "tests24.dat", "tests25.dat", "tests26.dat", "webkit02.dat"].indexOf(name) !== -1;
+        return ["template.dat", "scripted"].indexOf(name) === -1;
     }).forEach(function(file) {
         exports.treeConstruction[file] = function(test) {
             var testFile = fs.readFileSync(path + file);
