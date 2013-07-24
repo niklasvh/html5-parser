@@ -91,9 +91,9 @@ function serializeTree(tree, indentAmount) {
                 }
                 if (token.tagName === "template") {
                     html += "| " + indent(" ", indentAmount + 2) + "content";
-                    html += serializeTree(token.children, indentAmount + 4);
+                    html += serializeTree(token.childNodes, indentAmount + 4);
                 } else {
-                    html += serializeTree(token.children, indentAmount + 2);
+                    html += serializeTree(token.childNodes, indentAmount + 2);
                 }
                 break;
             case "DOCTYPE":
