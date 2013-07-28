@@ -179,7 +179,9 @@ function createTreeTest(buffer) {
                 if (testCase.lastStartTag) {
                     options.lastStartTag = testCase.lastStartTag;
                 }
-                test.deepEqual(new html5_parser.Parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
+
+                var parser = new html5_parser.Parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options);
+                test.deepEqual(parser.combineCharacterTokens(parser.tokens), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
             });
             test.done();
         };
@@ -205,7 +207,7 @@ function createTreeTest(buffer) {
                     options.fragment = testCase.fragment;
                 }
 
-                test.deepEqual(serializeTree(new html5_parser.Parser(testCase.data, options), 0), testCase.result, testCase.data);
+                test.deepEqual(serializeTree((new html5_parser.Parser(testCase.data, options)).constructor.childNodes, 0), testCase.result, testCase.data);
             });
 
             test.done();
