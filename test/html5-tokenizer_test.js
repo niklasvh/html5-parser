@@ -181,6 +181,7 @@ function createTreeTest(buffer) {
                 }
 
                 var parser = new html5_parser.Parser(testCase.doubleEscaped ? testCase.input.replace(doubleEscape, escapeDouble) : testCase.input, options);
+                parser.run();
                 test.deepEqual(parser.combineCharacterTokens(parser.tokens), escapeDoubleResults(testCase.output, testCase.doubleEscaped ===  true), testCase.description);
             });
             test.done();
@@ -207,7 +208,9 @@ function createTreeTest(buffer) {
                     options.fragment = testCase.fragment;
                 }
 
-                test.deepEqual(serializeTree((new html5_parser.Parser(testCase.data, options)).constructor.childNodes, 0), testCase.result, testCase.data);
+                var parser = new html5_parser.Parser(testCase.data, options);
+                parser.run();
+                test.deepEqual(serializeTree(parser.constructor.childNodes, 0), testCase.result, testCase.data);
             });
 
             test.done();
