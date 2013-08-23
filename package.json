@@ -2,7 +2,7 @@
   "name": "html5-parser",
   "description": "html5 parser for node.js and browsers",
   "version": "0.1.0",
-  "homepage": "https://github.com/niklasvh/html5-tokenizer",
+  "homepage": "https://github.com/niklasvh/html5-parser",
   "author": {
     "name": "Niklas von Hertzen",
     "email": "niklasvh@gmail.com",
@@ -10,18 +10,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:niklasvh/html5-tokenizer.git"
+    "url": "git@github.com:niklasvh/html5-parser.git"
   },
   "bugs": {
-    "url": "https://github.com/niklasvh/html5-tokenizer/issues"
+    "url": "https://github.com/niklasvh/html5-parser/issues"
   },
   "licenses": [
     {
       "type": "MIT",
-      "url": "https://github.com/niklasvh/html5-tokenizer/blob/master/LICENSE-MIT"
+      "url": "https://github.com/niklasvh/html5-parser/blob/master/LICENSE-MIT"
     }
   ],
-  "main": "lib/html5-tokenizer",
+  "main": "lib/tokenizer",
   "engines": {
     "node": ">= 0.6.0"
   },
@@ -34,7 +34,9 @@
     "grunt-contrib-jshint": "~0.1.1",
     "grunt-contrib-nodeunit": "~0.1.2",
     "grunt-contrib-watch": "~0.2.0",
-    "grunt": "~0.4.1"
+    "grunt": "~0.4.1",
+    "grunt-browserify": "~1.2.4"
   },
-  "keywords": []
+  "keywords": [],
+  "dependencies": {}
 }
