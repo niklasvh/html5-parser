@@ -83,7 +83,7 @@ function serializeTree(tree, indentAmount) {
     tree.forEach(function(token) {
         switch(token.nodeType) {
             case 1:
-                html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespaceURI) + token.tagName + ">";
+                html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespaceURI) + token._tagName + ">";
                 if (typeof(token.attributes) === "object") {
                     Object.keys(token.attributes).sort().forEach(function(key) {
                         html += "| " + indent(" ", indentAmount + 2) + namespaceAttribute(token.namespaceURI, key) + '="' + token.attributes[key] + '"';

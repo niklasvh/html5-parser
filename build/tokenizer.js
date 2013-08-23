@@ -25,7 +25,6 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         AMPERSAND: 0x0026,
         LESSTHAN_SIGN: 0x003C,
         GREATERTHAN_SIGN: 0x003E,
-        GREATERTHAN_SIGN: 0x003E,
         SOLIDUS: 0x002F,
         QUESTION_MARK: 0x003F,
         EOF: -1,
@@ -44,6 +43,11 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         SEMICOLON: 0x003B
     };
 
+    var scriptStates = {
+        alreadyStarted: 1,
+        parserInserted: 2
+    };
+
     var tokenType = {
         character: "Character",
         parseError: "ParseError",
@@ -52,6 +56,13 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         startTag: "StartTag",
         endTag: "EndTag",
         EOF: "EOF"
+    };
+
+    var nodeType = {
+        ELEMENT_NODE: 1,
+        TEXT_NODE: 3,
+        COMMENT_NODE: 8,
+        DOCUMENT_TYPE_NODE: 10
     };
 
     var svgCaseFix = {
@@ -112,8 +123,8 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         return (str >= 0x0080);
     }
 
-    function getTagName(node) {
-        return (typeof(node) === "object") ? node.tagName : node;
+    function get_tagName(node) {
+        return (typeof(node) === "object") ? node._tagName : node;
     }
 
     var characterReferenceTable = {
@@ -154,49 +165,89 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         return spaceCharacters.indexOf(token[1].charCodeAt(0)) === -1;
     }
 
+    function Node() {
+        this.childNodes = [];
+        this.attributes = {};
+        this.integrationPoint = null;
+    }
+
+    Node.prototype.appendChild = function(child) {
+        this._checkParent(child);
+        child.parentNode = this;
+        if (child.nodeType === nodeType.TEXT_NODE) {
+            var len = this.childNodes.length;
+            if (len && this.childNodes[len - 1].nodeType === nodeType.TEXT_NODE) {
+                this.childNodes[len - 1].data += child.data;
+            } else {
+                this.childNodes.push(new Text(child.data));
+            }
+        } else {
+            this.childNodes.push(child);
+        }
+    };
+
+    Node.prototype._checkParent = function(child) {
+        if (child.parentNode) {
+            var index = -1;
+            if (child.parentNode.childNodes.some(function(refNode) {
+                index++;
+                return refNode === child;
+            })) {
+                child.parentNode.childNodes.splice(index, 1);
+            }
+            child.parentNode = null;
+        }
+    };
+
+    Node.prototype._insertAt = function(element, index) {
+        this._checkParent(element);
+        element.parentNode = this;
+        this.childNodes.splice(index, 0, element);
+    };
+
+    function Text(chr) {
+        this.data = chr;
+        this.nodeType = nodeType.TEXT_NODE;
+    }
+
     function Constructor() {
         this.childNodes = [];
-        this.namespace = namespace.HTML;
+        this.namespaceURI = namespace.HTML;
     }
+
+    Constructor.prototype._insertAt = function(element, index) {
+        element.parentNode = this;
+        this.childNodes.splice(index, 0, element);
+    };
 
     Constructor.prototype.createComment = function(data) {
         return {
-            type: 'Comment',
+            nodeType: nodeType.COMMENT_NODE,
             data: data
         };
     };
 
-    Constructor.prototype.createElement = function(type, attributes) {
-        return {
-            type: "Element",
-            tagName: type,
-            attributes: attributes || {},
-            childNodes: [],
-            namespace: namespace.HTML,
-            integrationPoint: null
-        };
+    Constructor.prototype.createElement = function(type) {
+        var element = new Node();
+        element._tagName = type;
+        element.nodeType = nodeType.ELEMENT_NODE;
+        element.namespaceURI = namespace.HTML;
+        return element;
     };
 
     Constructor.prototype.createDocumentType = function(name, publicId, systemId) {
         return {
-            type: tokenType.doctype,
+            nodeType: nodeType.DOCUMENT_TYPE_NODE,
             name: name,
             publicId: publicId,
             systemId: systemId,
-            namespace: namespace.HTML
+            namespaceURI: namespace.HTML
         };
     };
 
-    Constructor.prototype.appendText = function(node, chr) {
-        var len = node.childNodes.length;
-        if (len && node.childNodes[len - 1].type === tokenType.character) {
-            node.childNodes[len - 1].text += chr;
-        } else {
-            node.childNodes.push({
-                type: tokenType.character,
-                text: chr
-            });
-        }
+    Constructor.prototype.appendChild = function(child) {
+        child.parentNode = this;
+        this.childNodes.push(child);
     };
 
     function Parser(html, options) {
@@ -234,51 +285,30 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.mode = this.modes.in_body;
                 this.tokenizer.setState(this.tokenizer.states.plaintext);
                 break;
-            case "head":
-            case "body":
-                this.mode = this.modes.in_body;
-                break;
-            case "html":
-                this.mode = this.modes.before_head;
-                break;
-            case "div":
-                this.mode = this.modes.in_body;
-                break;
+            case "head": case "body": this.mode = this.modes.in_body; break;
+            case "html": this.mode = this.modes.before_head; break;
+            case "div": this.mode = this.modes.in_body; break;
             case "style":
                 this.tokenizer.state =  this.tokenizer.states.rawtext;
                 this.originalMode = this.modes.in_body;
                 this.mode = this.modes.text;
                 break;
-            case "frameset":
-                this.mode = this.modes.in_frameset;
-                break;
-            case "table":
-                this.mode = this.modes.in_table;
-                break;
-            case "tbody":
-                this.mode = this.modes.in_table_body;
-                break;
+            case "frameset": this.mode = this.modes.in_frameset; break;
+            case "table": this.mode = this.modes.in_table; break;
+            case "tbody": this.mode = this.modes.in_table_body; break;
             case "caption":
                 this.mode = this.modes.in_caption;
-                this.constructor.tagName = "caption";
+                this.constructor._tagName = "caption";
                 break;
-            case "colgroup":
-                this.mode = this.modes.in_column_group;
-                break;
+            case "colgroup": this.mode = this.modes.in_column_group; break;
             case "tr":
                 this.mode = this.modes.in_row;
-                this.constructor.tagName = "tr";
+                this.constructor._tagName = "tr";
                 break;
-            case "td":
-                this.mode = this.modes.in_cell;
-                break;
-            case "select":
-                this.mode = this.modes.in_select;
-                break;
-            case undefined:
-                break;
-            default:
-                console.log('Undefined fragment', this.options.fragment);
+            case "td": this.mode = this.modes.in_cell; break;
+            case "select": this.mode = this.modes.in_select; break;
+            case undefined: break;
+            default: console.log('Undefined fragment', this.options.fragment);
         }
     }
 
@@ -290,6 +320,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (this.paused) {
                 return;
             }
+
             if (this.invalidCharacter(this.input)) {
                 this.tokens.push(tokenType.parseError);
             }
@@ -320,10 +351,10 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.options.type === "tree" && token !== tokenType.parseError) {
             var adjustedCurrentNode = this.adjustedCurrentNode();
             if (!adjustedCurrentNode ||
-                adjustedCurrentNode.namespace === namespace.HTML ||
+                adjustedCurrentNode.namespaceURI === namespace.HTML ||
                 (adjustedCurrentNode.integrationPoint === this.integrationPoint.MathMLtext && token[0] === tokenType.startTag && !(/^(mglyph|malignmark)$/).test(token[1])) ||
                 (adjustedCurrentNode.integrationPoint === this.integrationPoint.MathMLtext && this.isCharacterToken(token)) ||
-                (adjustedCurrentNode.tagName === "annotation-xml" && adjustedCurrentNode.namespace === namespace.MathML && this.isStartTag(token, "svg")) ||
+                (adjustedCurrentNode._tagName === "annotation-xml" && adjustedCurrentNode.namespaceURI === namespace.MathML && this.isStartTag(token, "svg")) ||
                 (adjustedCurrentNode.integrationPoint === this.integrationPoint.HTML && (token[0] === tokenType.startTag || this.isCharacterToken(token)))  ||
                 this.isEOF(token)) {
                 if (!ignored || (ignored[0] !== token[0] || String.fromCharCode(ignored[1]) !== token[1])) {
@@ -372,7 +403,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var first = null;
         markerIndex = markerIndex === -1 ? 0 : markerIndex;
         while((item = this.activeFormattingElements[markerIndex])) {
-            if (element.tagName === item.tagName && element.namespace === item.namespace && this.equalObjects(item.attributes, element.attributes)) {
+            if (element._tagName === item._tagName && element.namespaceURI === item.namespaceURI && this.equalObjects(item.attributes, element.attributes)) {
                 count++;
                 if (first === null) {
                     first = markerIndex;
@@ -428,7 +459,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
         while (true) {
             // 8. Create: Insert an HTML element for the token for which the element entry was created, to obtain new element.
-            newElement = this.insertHTMLElement(entry.tagName, entry.attributes);
+            newElement = this.insertHTMLElement(entry._tagName, entry.attributes);
 
             // 9. Replace the entry for entry in the list with an entry for new element.
             this.activeFormattingElements.splice(entryIndex, 1, newElement);
@@ -455,16 +486,14 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (this.openElements.length === 1) {
                 // TODO correct context
             }
-            return  this.currentNode();
-        } else {
-            return null;
+            return this.currentNode();
         }
+        return null;
     };
 
     Parser.prototype.appendFoster = function(node) {
         var fosterData = this.foster();
-        fosterData.foster.childNodes.splice(fosterData.index, 0, node);
-        node.parentNode = fosterData.foster;
+        fosterData.foster._insertAt(node, fosterData.index);
     };
 
     Parser.prototype.foster = function() {
@@ -474,7 +503,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var lastTable;
         var i = -1;
 
-        if (!(/^(table|tbody|tfoot|thead|tr)$/).test(this.currentNode().tagName)) {
+        if (!(/^(table|tbody|tfoot|thead|tr)$/).test(this.currentNode()._tagName)) {
             return {
                 foster: this.currentNode(),
                 index: this.currentNode().childNodes.length
@@ -483,7 +512,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
         while (nodes.length) {
             pop = nodes.pop();
-            if (pop.tagName === "table") {
+            if (pop._tagName === "table") {
                 lastTable = pop;
                 foster = (pop.parentNode) ? pop.parentNode : nodes.pop();
                 break;
@@ -507,33 +536,36 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     };
 
     Parser.prototype.insertCharacter = function(chr) {
-        var len, fosterData;
+        var len, fosterData, count;
         if (this.fosterParented && this.tokenizer.state !== this.tokenizer.states.plaintext) {
             fosterData = this.foster();
             len = fosterData.foster.childNodes.length;
-            if (len && fosterData.index && fosterData.foster.childNodes[fosterData.index - 1].type === tokenType.character) {
-                fosterData.foster.childNodes[fosterData.index - 1].text += chr;
+            if (len && fosterData.index && fosterData.foster.childNodes[fosterData.index - 1].nodeType === nodeType.TEXT_NODE) {
+                fosterData.foster.childNodes[fosterData.index - 1].data += chr;
             } else {
-                this.appendFoster({
-                    type: tokenType.character,
-                    text: chr
-                });
+                this.appendFoster(new Text(chr));
             }
         }  else {
-            this.constructor.appendText(this.currentNode(), chr);
+            count = this.currentNode().childNodes.length;
+            if (count && this.currentNode().childNodes[count - 1].nodeType === nodeType.TEXT_NODE) {
+                this.currentNode().childNodes[count - 1].data += chr;
+            } else {
+                this.currentNode().appendChild(new Text(chr));
+            }
         }
     };
 
     Parser.prototype.insertHTMLElement = function(type, attributes) {
-        var element = this.constructor.createElement(type, attributes);
+        var element = this.constructor.createElement(type);
+        element.attributes = attributes || {};
         this.insertNodeInAppropriatePlace(element);
         this.openElements.push(element);
         return element;
     };
 
     Parser.prototype.setIntegrationPoint = function(element) {
-        var ns = element.namespace,
-            type = element.tagName,
+        var ns = element.namespaceURI,
+            type = element._tagName,
             attributes = element.attributes;
         if (ns === namespace.MathML && (/^(mi|mo|mn|ms|mtext)$/).test(type))  {
             element.integrationPoint = this.integrationPoint.MathMLtext;
@@ -546,7 +578,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.insertForeignElement = function(type, attributes, ns) {
         var element = this.insertHTMLElement(type, attributes);
-        element.namespace = ns;
+        element.namespaceURI = ns;
         this.setIntegrationPoint(element);
         return element;
     };
@@ -565,18 +597,16 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         this.mode = this.modes.text;
     };
 
-    Parser.prototype.parseError = function() {
-
-    };
+    Parser.prototype.parseError = function() {};
 
     Parser.prototype.initial = function(token) {
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             return;
         } else if (this.isCommentToken(token)) {
-            this.constructor.childNodes.push(this.constructor.createComment(token[1]));
+            this.constructor.appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             /* TODO doctype */
-            this.constructor.childNodes.push(this.constructor.createDocumentType(token[1], token[2], token[3]));
+            this.constructor.appendChild(this.constructor.createDocumentType(token[1], token[2], token[3]));
             this.mode = this.modes.before_html;
         } else {
             /* If the document is not an iframe srcdoc document, then this is a parse error; set the Document to quirks mode. */
@@ -591,20 +621,21 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isCommentToken(token)) {
-            this.constructor.childNodes.push(this.constructor.createComment(token[1]));
+            this.constructor.appendChild(this.constructor.createComment(token[1]));
         } else if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             return;
         } else if (this.isStartTag(token, "html")) {
             element = this.constructor.createElement("html", token[2]);
+            element.attributes = token[2] || {};
             this.openElements.push(element);
-            this.constructor.childNodes.push(element);
+            this.constructor.appendChild(element);
             this.mode = this.modes.before_head;
         } else if (token[0] === tokenType.endTag && !this.isEndTag(token, "head", "body", "html", "br")) {
             this.parseError();
         } else {
             element = this.constructor.createElement("html");
             this.openElements.push(element);
-            this.constructor.childNodes.push(element);
+            this.constructor.appendChild(element);
             this.mode = this.modes.before_head;
             this.addToken(token);
         }
@@ -614,7 +645,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             return;
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "html")) {
@@ -623,13 +654,13 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.headElementPointer = this.insertHTMLElement(token[1], token[2]);
             this.mode = this.modes.in_head;
         } else if (this.isEndTag(token, "head", "body", "html", "br")) {
-            this.headElementPointer = this.insertHTMLElement("head", {});
+            this.headElementPointer = this.insertHTMLElement("head");
             this.mode = this.modes.in_head;
             this.addToken(token);
         } else if (token[0] === tokenType.endTag) {
             this.parseError();
         } else {
-            this.headElementPointer = this.insertHTMLElement("head",{});
+            this.headElementPointer = this.insertHTMLElement("head");
             this.mode = this.modes.in_head;
             this.addToken(token);
         }
@@ -640,7 +671,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -671,7 +702,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.mode = this.modes.in_head_noscript;
         } else if (this.isStartTag(token, "script")) {
             element = this.insertHTMLElement(token[1], token[2]);
-            element.state = "parser-inserted";
+            element._parserInserted = true;
             element.forceAsync = false;
             this.tokenizer.state = this.tokenizer.states.script_data;
             this.originalMode = this.mode;
@@ -694,7 +725,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.parseError();
             } else {
                 this.generateImpliedEndTags();
-                if (this.currentNode().tagName !== "template") {
+                if (this.currentNode()._tagName !== "template") {
                     this.parseError();
                 }
                 this.popUntil("template");
@@ -715,7 +746,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -739,7 +770,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isStartTag(token, "head") || token[0] === tokenType.endTag) {
             this.parseError();
         } else {
-            this.insertHTMLElement("body", {});
+            this.insertHTMLElement("body");
             this.mode = this.modes.in_body;
             this.addToken(token);
         }
@@ -770,7 +801,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.insertCharacter(token[1]);
             this.frameSetOk = "not ok";
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -798,7 +829,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             });
         } else if(this.isStartTag(token, "frameset")) {
             this.parseError();
-            if (this.openElements.length <= 1 || this.openElements[1].tagName !== "body") {
+            if (this.openElements.length <= 1 || this.openElements[1]._tagName !== "body") {
                 return;
             }
             if (this.frameSetOk !== "not ok") {
@@ -841,7 +872,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (this.hasInButtonScope("p")) {
                 this.closePElement();
             }
-            if ((/^(h1|h2|h3|h4|h5|h6)$/).test(this.currentNode().tagName)) {
+            if ((/^(h1|h2|h3|h4|h5|h6)$/).test(this.currentNode()._tagName)) {
                 this.parseError();
                 this.openElements.pop();
             }
@@ -860,11 +891,11 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             index = this.openElements.length - 1;
             node = this.openElements[index];
             while (true) {
-                if (node.tagName === "li") {
+                if (node._tagName === "li") {
                     this.generalFormatterEnd(token, this.hasInListItemScope);
                     break;
                 }
-                if (this.inSpecialCategory(node) && !(/^(address|div|p)$/).test(node.tagName)) {
+                if (this.inSpecialCategory(node) && !(/^(address|div|p)$/).test(node._tagName)) {
                     break;
                 }
                 node = this.openElements[--index];
@@ -878,12 +909,12 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.frameSetOk = "not ok";
             index = this.openElements.length;
             while(--index) {
-                if ((/^(dd|dt)$/).test(this.openElements[index].tagName)) {
-                    this.endDdDt([tokenType.endTag, this.openElements[index].tagName]);
+                if ((/^(dd|dt)$/).test(this.openElements[index]._tagName)) {
+                    this.endDdDt([tokenType.endTag, this.openElements[index]._tagName]);
                     break;
                 }
 
-                if (this.inSpecialCategory(this.openElements[index]) && !(/^(address|div|p)$/).test(this.openElements[index].tagName)) {
+                if (this.inSpecialCategory(this.openElements[index]) && !(/^(address|div|p)$/).test(this.openElements[index]._tagName)) {
                     break;
                 }
             }
@@ -902,7 +933,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (this.hasElementInScope("button")) {
                 this.parseError();
                 this.generateImpliedEndTags();
-                if (this.currentNode().tagName !== token[1]) {
+                if (this.currentNode()._tagName !== token[1]) {
                     this.parseError();
                 }
                 this.popUntil(token[1]);
@@ -918,7 +949,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.parseError();
             } else {
                 this.generateImpliedEndTags();
-                if (this.currentNode().tagName !== token[1]) {
+                if (this.currentNode()._tagName !== token[1]) {
                     this.parseError();
                 }
                 this.popUntil(token[1]);
@@ -926,7 +957,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isEndTag(token, "form")) {
             node = this.formElementPointer;
             this.formElementPointer = null;
-            if (node === null || !this.hasElementInScope(node.tagName)) {
+            if (node === null || !this.hasElementInScope(node._tagName)) {
                 this.parseError();
                 return;
             }
@@ -959,7 +990,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.parseError();
             } else {
                 this.generateImpliedEndTags();
-                if (this.currentNode().tagName !== token[1]) {
+                if (this.currentNode()._tagName !== token[1]) {
                     this.parseError();
                 }
                 this.popUntilOneOf("h1", "h2", "h3", "h4", "h5", "h6");
@@ -1000,7 +1031,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.parseError();
             } else {
                 this.generateImpliedEndTags();
-                if (this.currentNode().tagName !== token[1]) {
+                if (this.currentNode()._tagName !== token[1]) {
                     this.parseError();
                 }
 
@@ -1095,7 +1126,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.mode = this.modes.in_select;
             }
         } else if (this.isStartTag(token, "optgroup", "option")) {
-            if (this.currentNode().tagName === "option") {
+            if (this.currentNode()._tagName === "option") {
                 this.openElements.pop();
             }
             this.reconstructActiveFormatting();
@@ -1103,7 +1134,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isStartTag(token, "rp", "rt")) {
             if (this.hasElementInScope("ruby")) {
                 this.generateImpliedEndTags();
-                if (this.currentNode().tagName !== "ruby") {
+                if (this.currentNode()._tagName !== "ruby") {
                     this.parseError();
                 }
             }
@@ -1173,7 +1204,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             except = [except];
         }
 
-        while((/^(dd|dt|li|option|optgroup|p|rp|rt)$/).test(this.currentNode().tagName) && except.indexOf(this.currentNode().tagName) === -1) {
+        while((/^(dd|dt|li|option|optgroup|p|rp|rt)$/).test(this.currentNode()._tagName) && except.indexOf(this.currentNode()._tagName) === -1) {
             this.openElements.pop();
         }
     };
@@ -1196,7 +1227,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.parseError();
         } else {
             // Generate implied end tags, except for elements with the same tag name as the token.
-            if (this.currentNode().tagName !== token[1]) {
+            if (this.currentNode()._tagName !== token[1]) {
                 this.parseError();
             }
             this.popUntil(token[1]);
@@ -1224,7 +1255,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var self = this;
         var popped;
         var append = function(node) {
-            self.insertToNode(node, element);
+            element.appendChild(node);
         };
 
         // 1. Let outer loop counter be zero.
@@ -1258,7 +1289,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
             // Otherwise, if there is such a node, and that node is also in the stack of open elements, but the element is not in scope,
             // then this is a parse error; ignore the token, and abort these steps.
-            if (!this.hasElementInScope(formattingElement.tagName)) {
+            if (!this.hasElementInScope(formattingElement._tagName)) {
                 this.parseError();
                 return;
             }
@@ -1317,8 +1348,9 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 }
 
                 // 9.7 Create an element for the token for which the element node was created, with common ancestor as the intended parent;
-                element = this.constructor.createElement(node.tagName, node.attributes);
-                this.insertToNode(element, commonAncestor);
+                element = this.constructor.createElement(node._tagName);
+                element.attributes = node.attributes || {};
+                commonAncestor.appendChild(element);
                 // replace the entry for node in the list of active formatting elements with an entry for the new element,
                 this.activeFormattingElements.splice(tmpIndex, 1, element);
                 // replace the entry for node in the stack of open elements with an entry for the new element
@@ -1334,24 +1366,22 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 }
 
                 // 9.9 Insert last node into node, first removing it from its previous parent node if any.
-                this.removeFromParent(lastNode);
-                this.insertToNode(lastNode, node);
+                node.appendChild(lastNode);
 
                 // 9.10 Let last node be node.
                 lastNode = node;
             }
             // 10. Insert whatever last node ended up being in the previous step at the appropriate place for inserting a node, but using common ancestor as the override target.
-            this.removeFromParent(lastNode);
-
             this.insertNodeInAppropriatePlace(lastNode, commonAncestor);
             // 11. Create an element for the token for which the formatting element was created, with furthest block as the intended parent.
-            element = this.constructor.createElement(formattingElement.tagName, formattingElement.attributes);
+            element = this.constructor.createElement(formattingElement._tagName);
+            element.attributes = formattingElement.attributes || {};
 
             // 12. Take all of the child nodes of the furthest block and append them to the element created in the last step.
             furthestBlock.childNodes.splice(0).forEach(append);
 
             // 13. Append that new element to the furthest block.
-            this.insertToNode(element, furthestBlock);
+            furthestBlock.appendChild(element);
 
             // 14. Remove the formatting element from the list of active formatting elements,
             this.removeFrom(formattingElement, this.activeFormattingElements);
@@ -1367,8 +1397,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.insertNodeInAppropriatePlace = function(node, overrideTarget) {
         var appropriatePlace = this.appropriatePlaceForInsertingNode(overrideTarget);
-        appropriatePlace.parent.childNodes.splice(appropriatePlace.index, 0, node);
-        node.parentNode = appropriatePlace.parent;
+        appropriatePlace.parent._insertAt(node, appropriatePlace.index);
     };
 
     Parser.prototype.appropriatePlaceForInsertingNode = function(overrideTarget) {
@@ -1377,7 +1406,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var lastTemplate;
         var lastTable;
 
-        if (this.fosterParented && (/^(table|tbody|tfoot|thead|tr)$/).test(target.tagName)) {
+        if (this.fosterParented && (/^(table|tbody|tfoot|thead|tr)$/).test(target._tagName)) {
             lastTemplate = this.lastOfTypeIn("template", this.openElements);
             lastTable = this.lastOfTypeIn("table", this.openElements);
 
@@ -1421,7 +1450,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     Parser.prototype.lastOfTypeIn = function(type, arr) {
         var index = arr.length;
         while (--index > 0) {
-            if (arr[index].tagName === type) {
+            if (arr[index]._tagName === type) {
                 return arr[index];
             }
         }
@@ -1443,28 +1472,10 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         })) ? index : -1;
     };
 
-    Parser.prototype.removeFromParent = function(node) {
-        if (node.parentNode) {
-            var index = -1;
-            if (node.parentNode.childNodes.some(function(refNode) {
-                index++;
-                return refNode === node;
-            })) {
-                node.parentNode.childNodes.splice(index, 1);
-            }
-            node.parentNode = null;
-        }
-    };
-
-    Parser.prototype.insertToNode = function(node, parent) {
-        parent.childNodes.push(node);
-        node.parentNode = parent;
-    };
-
-    Parser.prototype.getElementBetweenMarkerAndEnd = function(tagName) {
-        var tagNames = this.activeFormattingElements.map(getTagName);
-        var lastMarker = tagNames.lastIndexOf("marker");
-        var result = tagNames.slice((lastMarker !== -1 ? lastMarker : 0)).lastIndexOf(tagName);
+    Parser.prototype.getElementBetweenMarkerAndEnd = function(_tagName) {
+        var _tagNames = this.activeFormattingElements.map(get_tagName);
+        var lastMarker = _tagNames.lastIndexOf("marker");
+        var result = _tagNames.slice((lastMarker !== -1 ? lastMarker : 0)).lastIndexOf(_tagName);
         return result === -1 ? -1 : result + ((lastMarker !== -1) ? lastMarker : 0);
     };
 
@@ -1485,7 +1496,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.closePElement = function() {
         this.generateImpliedEndTags(["p"]);
-        if (this.currentNode().tagName !== "p") {
+        if (this.currentNode()._tagName !== "p") {
             this.parseError();
         }
         this.popUntil("p");
@@ -1495,9 +1506,9 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var index = this.openElements.length - 1;
         var node = this.openElements[index];
         while(true) {
-            if (node.tagName === token[1]) {
+            if (node._tagName === token[1]) {
                 this.generateImpliedEndTags(token[1]);
-                if (node.tagName !== this.currentNode().tagName) {
+                if (node._tagName !== this.currentNode()._tagName) {
                     this.parseError();
                 }
                 this.openElements.splice(index);
@@ -1515,7 +1526,9 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.insertCharacter(token[1]);
         } else if (this.isEOF(token)) {
             this.parseError();
-            // If the current node is a script element, mark the script element as "already started".
+            if (this.currentNode()._tagName === "script") {
+                this.currentNode()._alreadyStarted = true;
+            }
             this.openElements.pop();
             this.mode = this.originalMode;
             this.addToken(token);
@@ -1525,9 +1538,25 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
              Provide a stable state.
              */
             var script = this.currentNode();
+
             this.openElements.pop();
             this.mode = this.originalMode;
-            // TODO
+
+            if (script._alreadyStarted) {
+                return;
+            }
+
+            var wasParserInserted = (script._parserInserted);
+            script._parserInserted = false;
+
+            if (wasParserInserted && script.attributes.async === undefined) {
+                script._forceAsync = true;
+            }
+
+            if (script._run) {
+                script._run();
+            }
+            // TODO  http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#prepare-a-script
         } else if (token[0] === tokenType.endTag) {
             this.openElements.pop();
             this.mode = this.originalMode;
@@ -1535,13 +1564,13 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     };
 
     Parser.prototype.in_table = function(token) {
-        if (this.isCharacterToken(token) && (/^(table|tbody|tfoot|thead|tr)$/).test(this.currentNode().tagName)) {
+        if (this.isCharacterToken(token) && (/^(table|tbody|tfoot|thead|tr)$/).test(this.currentNode()._tagName)) {
             this.pendingTableCharacterTokens = [];
             this.originalMode = this.mode;
             this.mode = this.modes.in_table_text;
             this.addToken(token);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "caption")) {
@@ -1657,7 +1686,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             return false;
         } else {
             this.generateImpliedEndTags();
-            if (this.currentNode().tagName !== "caption") {
+            if (this.currentNode()._tagName !== "caption") {
                 this.parseError();
             }
             this.popUntil("caption");
@@ -1671,7 +1700,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -1697,7 +1726,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.closeColumnGroup = function() {
         var node = this.currentNode();
-        if (node && node.tagName === "colgroup") {
+        if (node && node._tagName === "colgroup") {
             this.openElements.pop();
             this.mode = this.modes.in_table;
             return true;
@@ -1738,8 +1767,8 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         this.popUntilOneOf("tbody", "tfoot", "thead", "template", "html");
     };
 
-    Parser.prototype.closeTableSection = function(tagName) {
-        if (!this.hasInOpenStack(tagName)) {
+    Parser.prototype.closeTableSection = function(_tagName) {
+        if (!this.hasInOpenStack(_tagName)) {
             this.parseError();
         } else {
             this.clearStackBackToTableContext();
@@ -1827,7 +1856,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.closeCell = function() {
         this.generateImpliedEndTags();
-        if (!(/^(td|th)$/).test(this.currentNode().tagName)) {
+        if (!(/^(td|th)$/).test(this.currentNode()._tagName)) {
             this.parseError();
         }
         this.popUntilOneOf("td", "th");
@@ -1836,12 +1865,12 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         this.mode = this.modes.in_row;
     };
 
-    Parser.prototype.endCell = function(tagName) {
+    Parser.prototype.endCell = function(_tagName) {
         this.generateImpliedEndTags();
-        if (this.currentNode().tagName === tagName) {
+        if (this.currentNode()._tagName === _tagName) {
             this.parseError();
         }
-        this.popUntil(tagName);
+        this.popUntil(_tagName);
         this.clearUntilLastMarker();
         this.mode = this.modes.in_row;
     };
@@ -1861,35 +1890,35 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if(this.isCharacterToken(token)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
             this.in_body(token);
         } else if(this.isStartTag(token, "option")) {
-            if (this.currentNode().tagName === "option") {
+            if (this.currentNode()._tagName === "option") {
                 this.openElements.pop();
             }
             this.insertHTMLElement(token[1], token[2]);
         } else if (this.isStartTag(token, "optgroup")) {
-            if (this.currentNode().tagName === "option") {
+            if (this.currentNode()._tagName === "option") {
                 this.openElements.pop();
             }
-            if (this.currentNode().tagName === "optgroup") {
+            if (this.currentNode()._tagName === "optgroup") {
                 this.openElements.pop();
             }
             this.insertHTMLElement(token[1], token[2]);
         } else if (this.isEndTag(token, "optgroup")) {
-            if (this.currentNode().tagName === "option" && this.openElements.length >= 2 && this.openElements[this.openElements.length - 2].tagName === "optgroup" ) {
+            if (this.currentNode()._tagName === "option" && this.openElements.length >= 2 && this.openElements[this.openElements.length - 2]._tagName === "optgroup" ) {
                 this.openElements.pop();
             }
-            if (this.currentNode().tagName === "optgroup") {
+            if (this.currentNode()._tagName === "optgroup") {
                 this.openElements.pop();
             } else {
                 this.parseError();
             }
         } else if (this.isEndTag(token, "option")) {
-            if (this.currentNode().tagName === "option") {
+            if (this.currentNode()._tagName === "option") {
                 this.openElements.pop();
             } else {
                 this.parseError();
@@ -1908,7 +1937,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isStartTag(token, "script", "template") || this.isEndTag(token, "template")) {
             this.in_head(token);
         } else if (this.isEOF(token)) {
-            if (this.currentNode().tagName !== "html") {
+            if (this.currentNode()._tagName !== "html") {
                 this.parseError();
             }
         } else {
@@ -1993,7 +2022,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.in_body(token);
         } else if (this.isCommentToken(token)) {
-            this.openElements[0].childNodes.push(this.constructor.createComment(token[1]));
+            this.openElements[0].appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -2014,7 +2043,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if (this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "html")) {
@@ -2022,7 +2051,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isStartTag(token, "frameset")) {
             this.insertHTMLElement(token[1], token[2]);
         } else if (this.isEndTag(token, "frameset")) {
-            if (this.currentNode().tagName === "html") {
+            if (this.currentNode()._tagName === "html") {
                 this.parseError();
             } else {
                 this.openElements.pop();
@@ -2038,7 +2067,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isStartTag(token, "noframes")) {
             this.in_head(token);
         } else if (this.isEOF(token)) {
-            if (this.currentNode().tagName === "html") {
+            if (this.currentNode()._tagName === "html") {
                 this.parseError();
             }
         } else {
@@ -2050,7 +2079,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if (this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "html")) {
@@ -2068,7 +2097,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.after_after_body = function(token) {
         if (this.isCommentToken(token)) {
-            this.constructor.childNodes.push(this.constructor.createComment(token[1]));
+            this.constructor.appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token) || (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) || this.isStartTag(token, "html")) {
             this.in_body(token);
         } else if (this.isEOF(token)) {
@@ -2082,7 +2111,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.after_after_frameset = function(token) {
         if (this.isCommentToken(token)) {
-            this.constructor.childNodes.push(this.constructor.createComment(token[1]));
+            this.constructor.appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token) || (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) || this.isStartTag(token, "html")) {
             this.in_body(token);
         } else if (this.isEOF(token)) {
@@ -2095,7 +2124,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     };
 
     Parser.prototype.in_foreign_content = function(token) {
-        var tagName, attributes;
+        var _tagName, attributes;
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.NULL)) {
             this.parseError();
             this.insertCharacter(String.fromCharCode(characters.REPLACEMENT_CHARACTER));
@@ -2105,7 +2134,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.insertCharacter(token[1]);
             this.frameSetOk = "not ok";
         } else if (this.isCommentToken(token)) {
-            this.currentNode().childNodes.push(this.constructor.createComment(token[1]));
+            this.currentNode().appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token,  "b", "big", "blockquote", "body", "br", "center", "code", "dd", "div", "dl", "dt", "em", "embed", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -2114,25 +2143,25 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.parseError();
             // If the parser was originally created for the HTML fragment parsing algorithm, then act as described in the "any other start tag" entry below. (fragment case)
             var currentNode = this.currentNode();
-            while(currentNode.integrationPoint !== this.integrationPoint.MathMLtext && currentNode.integrationPoint !== this.integrationPoint.HTML && currentNode.namespace !== namespace.HTML) {
+            while(currentNode.integrationPoint !== this.integrationPoint.MathMLtext && currentNode.integrationPoint !== this.integrationPoint.HTML && currentNode.namespaceURI !== namespace.HTML) {
                 this.openElements.pop();
                 currentNode = this.currentNode();
             }
             this.addToken(token);
         } else if (token[0] === tokenType.startTag) {
-            tagName = token[1];
+            _tagName = token[1];
             attributes = token[2];
-            if (this.currentNode().namespace === namespace.MathML) {
+            if (this.currentNode().namespaceURI === namespace.MathML) {
                 attributes = this.adjustMathMLattributes(attributes);
-            } else if (this.currentNode().namespace === namespace.SVG) {
-                tagName = (svgCaseFix[token[1]]) ? svgCaseFix[token[1]] : token[1];
+            } else if (this.currentNode().namespaceURI === namespace.SVG) {
+                _tagName = (svgCaseFix[token[1]]) ? svgCaseFix[token[1]] : token[1];
                 attributes = this.adjustSVGattributes(attributes);
             }
             // Adjust foreign attributes for the token. (This fixes the use of namespaced attributes, in particular XLink in SVG.)
-            this.insertForeignElement(tagName, attributes, this.currentNode().namespace);
+            this.insertForeignElement(_tagName, attributes, this.currentNode().namespaceURI);
 
             if (token[3]) {
-                if (tagName === "script") {
+                if (_tagName === "script") {
                     /*
                      If the token has its self-closing flag set, then run the appropriate steps from the following list:
 
@@ -2144,7 +2173,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                     //   Pop the current node off the stack of open elements and acknowledge the token's self-closing flag.
                 }
             }
-        } else if (this.isEndTag(token, "script") && this.currentNode().tagName === "script" && this.currentNode().namespace === namespace.SVG) {
+        } else if (this.isEndTag(token, "script") && this.currentNode()._tagName === "script" && this.currentNode().namespaceURI === namespace.SVG) {
             this.openElements.pop();
             /*
              Let the old insertion point have the same value as the current insertion point. Let the insertion point be just before the next input character.
@@ -2162,16 +2191,16 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (token[0] === tokenType.endTag) {
             var index = this.openElements.length;
             var node = this.openElements[--index];
-            if (node.tagName.toLowerCase() !== token[1]) {
+            if (node._tagName.toLowerCase() !== token[1]) {
                 this.parseError();
             }
             while(index) {
-                if (node.tagName.toLowerCase() === token[1]) {
+                if (node._tagName.toLowerCase() === token[1]) {
                     this.openElements.splice(index);
                     break;
                 }
                 node = this.openElements[--index];
-                if (node.namespace === namespace.HTML) {
+                if (node.namespaceURI === namespace.HTML) {
                     this.in_html_content(token);
                     break;
                 }
@@ -2179,27 +2208,27 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         }
     };
 
-    Parser.prototype.popUntil = function(tagName) {
+    Parser.prototype.popUntil = function(_tagName) {
         while(this.openElements.length) {
-            if (this.openElements.pop().tagName === tagName) {
+            if (this.openElements.pop()._tagName === _tagName) {
                 break;
             }
         }
     };
 
     Parser.prototype.popUntilOneOf = function() {
-        var tagNames = [].slice.call(arguments, 0);
+        var _tagNames = [].slice.call(arguments, 0);
         while(this.openElements.length) {
-            if (tagNames.indexOf(this.currentNode().tagName) !== -1) {
+            if (_tagNames.indexOf(this.currentNode()._tagName) !== -1) {
                 return;
             }
             this.openElements.pop();
         }
     };
 
-    Parser.prototype.hasInOpenStack = function(tagName) {
+    Parser.prototype.hasInOpenStack = function(_tagName) {
         return this.openElements.some(function(element) {
-            return element.tagName === tagName;
+            return element._tagName === _tagName;
         });
     };
 
@@ -2212,7 +2241,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 last = true;
                 node = this.constructor;
             }
-            switch(node.tagName) {
+            switch(node._tagName) {
                 case "select":
                     this.mode = this.modes.in_select;
                     // TODO
@@ -2279,22 +2308,22 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             "center", "col", "colgroup", "dd", "details", "dir", "div", "dl", "dt", "embed", "fieldset", "figcaption", "figure", "footer", "form", "frame", "frameset",
             "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "iframe", "img", "input", "isindex", "li", "link", "listing", "main", "marquee",
             "menu", "menuitem", "meta", "nav", "noembed", "noframes", "noscript", "object", "ol", "p", "param", "plaintext", "pre", "script", "section", "select", "source", "style",
-            "summary", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "title", "tr", "track", "ul", "wbr", "xmp"].indexOf(node.tagName) !== -1 && node.namespace === namespace.HTML) ||
-            (["mi", "mo", "mn", "ms", "mtext", "annotation-xml"].indexOf(node.tagName) !== -1 && node.namespace === namespace.MathML) ||
-            (["foreignObject", "desc", "title"].indexOf(node.tagName) !== -1 && node.namespace === namespace.SVG));
+            "summary", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "title", "tr", "track", "ul", "wbr", "xmp"].indexOf(node._tagName) !== -1 && node.namespaceURI === namespace.HTML) ||
+            (["mi", "mo", "mn", "ms", "mtext", "annotation-xml"].indexOf(node._tagName) !== -1 && node.namespaceURI === namespace.MathML) ||
+            (["foreignObject", "desc", "title"].indexOf(node._tagName) !== -1 && node.namespaceURI === namespace.SVG));
     };
 
     Parser.prototype.hasInScope = function(target, list, negate) {
         var index = this.openElements.length - 1;
         var node = this.openElements[index--];
         var matchFunc = function(group) {
-            return (group.namespace === node.namespace && group.elements.indexOf(node.tagName) !== -1);
+            return (group.namespace === node.namespaceURI && group.elements.indexOf(node._tagName) !== -1);
         };
         while(true) {
             if (node === undefined) {
                 break;
             }
-            if (target.indexOf(node.tagName) !== -1) {
+            if (target.indexOf(node._tagName) !== -1) {
                 return true;
             } else if (list.some(matchFunc) !== negate) {
                 return false;
@@ -2452,7 +2481,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         this.state = options.initialState || this.states.data;
         this.parser = parser;
         this.revertState = null;
-        this.tagName = null;
+        this._tagName = null;
         this.endTag = null;
         this.selfClosing = null;
         this.attributes = null;
@@ -2872,14 +2901,14 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     };
 
     Tokenizer.prototype.createStartTagToken = function() {
-        this.tagName = "";
+        this._tagName = "";
         this.endTag = false;
         this.selfClosing = null;
         this.attributes = {};
     };
 
     Tokenizer.prototype.createEndTagToken = function() {
-        this.tagName = "";
+        this._tagName = "";
         this.endTag = true;
     };
 
@@ -2903,17 +2932,17 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     Tokenizer.prototype.emitTag = function() {
         this.addAttribute();
         if (!this.endTag) {
-            this.lastStartTag = this.tagName;
+            this.lastStartTag = this._tagName;
             if (this.selfClosing) {
-                this.tokens.push([tokenType.startTag, this.tagName, this.attributes, true]);
+                this.tokens.push([tokenType.startTag, this._tagName, this.attributes, true]);
             } else {
-                this.tokens.push([tokenType.startTag, this.tagName, this.attributes]);
+                this.tokens.push([tokenType.startTag, this._tagName, this.attributes]);
             }
         } else {
             if (this.selfClosing) {
                 this.parseError();
             }
-            this.tokens.push([tokenType.endTag, this.tagName]);
+            this.tokens.push([tokenType.endTag, this._tagName]);
         }
     };
 
@@ -2926,7 +2955,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     };
 
     Tokenizer.prototype.appropriateEndTagToken = function() {
-        return (this.lastStartTag === this.tagName);
+        return (this.lastStartTag === this._tagName);
     };
 
 
@@ -3085,7 +3114,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x0071:case 0x0072:case 0x0073:case 0x0074:case 0x0075:
             case 0x0076:case 0x0077:case 0x0078:case 0x0079:case 0x007A:
                 this.createStartTagToken();
-                this.tagName = String.fromCharCode(character);
+                this._tagName = String.fromCharCode(character);
                 this.setState(this.states.tag_name);
             break;
             case characters.QUESTION_MARK:
@@ -3118,7 +3147,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x0071:case 0x0072:case 0x0073:case 0x0074:case 0x0075:
             case 0x0076:case 0x0077:case 0x0078:case 0x0079:case 0x007A:
                 this.createEndTagToken();
-                this.tagName += String.fromCharCode(character);
+                this._tagName += String.fromCharCode(character);
                 this.setState(this.states.tag_name);
             break;
             case characters.GREATERTHAN_SIGN:
@@ -3160,11 +3189,11 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x004C:case 0x004D:case 0x004E:case 0x004F:case 0x0050:
             case 0x0051:case 0x0052:case 0x0053:case 0x0054:case 0x0055:
             case 0x0056:case 0x0057:case 0x0058:case 0x0059:case 0x005A:
-                this.tagName += String.fromCharCode(character + 0x0020);
+                this._tagName += String.fromCharCode(character + 0x0020);
                 break;
             case characters.NULL:
                 this.parseError();
-                this.tagName += String.fromCharCode(characters.REPLACEMENT_CHARACTER);
+                this._tagName += String.fromCharCode(characters.REPLACEMENT_CHARACTER);
                 break;
             case characters.EOF:
                 this.parseError();
@@ -3172,7 +3201,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 this.position--;
                 break;
             default:
-                this.tagName += String.fromCharCode(character);
+                this._tagName += String.fromCharCode(character);
                 break;
         }
     };
@@ -3191,7 +3220,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         }
     };
 
-    Tokenizer.prototype.end_tag_open_general = function(character, endTagName, defaultState) {
+    Tokenizer.prototype.end_tag_open_general = function(character, end_tagName, defaultState) {
         var tmp = character;
         switch(character) {
             case 0x0041: //[A-Z]
@@ -3209,9 +3238,9 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x0071:case 0x0072:case 0x0073:case 0x0074:case 0x0075:
             case 0x0076:case 0x0077:case 0x0078:case 0x0079:case 0x007A:
                 this.createEndTagToken();
-                this.tagName = String.fromCharCode(tmp);
+                this._tagName = String.fromCharCode(tmp);
                 this.tempBuffer += String.fromCharCode(character);
-                this.setState(endTagName);
+                this.setState(end_tagName);
                 break;
             default:
                 this.setState(defaultState);
@@ -3256,7 +3285,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x004C:case 0x004D:case 0x004E:case 0x004F:case 0x0050:
             case 0x0051:case 0x0052:case 0x0053:case 0x0054:case 0x0055:
             case 0x0056:case 0x0057:case 0x0058:case 0x0059:case 0x005A:
-                this.tagName += String.fromCharCode(character + 0x0020);
+                this._tagName += String.fromCharCode(character + 0x0020);
                 this.tempBuffer += String.fromCharCode(character);
                 return;
             case 0x0061: //[a-z]
@@ -3265,7 +3294,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x006C:case 0x006D:case 0x006E:case 0x006F:case 0x0070:
             case 0x0071:case 0x0072:case 0x0073:case 0x0074:case 0x0075:
             case 0x0076:case 0x0077:case 0x0078:case 0x0079:case 0x007A:
-                this.tagName += String.fromCharCode(character);
+                this._tagName += String.fromCharCode(character);
                 this.tempBuffer += String.fromCharCode(character);
                 return;
         }
@@ -3487,7 +3516,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             case 0x0071:case 0x0072:case 0x0073:case 0x0074:case 0x0075:
             case 0x0076:case 0x0077:case 0x0078:case 0x0079:case 0x007A:
                 this.createEndTagToken();
-                this.tagName = String.fromCharCode(tmp);
+                this._tagName = String.fromCharCode(tmp);
                 this.tempBuffer += String.fromCharCode(character);
                 this.setState(this.states.script_data_escaped_end_tag_name);
                 break;
@@ -4072,7 +4101,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (lookahead.join("").toUpperCase() === "DOCTYPE") {
             this.position+=7;
             this.setState(this.states.doctype);
-        } else if (this.parser.currentNode() && this.parser.currentNode().namespace !== namespace.HTML && lookahead.join("").toUpperCase() === "[CDATA[") {
+        } else if (this.parser.currentNode() && this.parser.currentNode().namespaceURI !== namespace.HTML && lookahead.join("").toUpperCase() === "[CDATA[") {
             this.position+=7;
             this.setState(this.states.CDATA_section);
         } else {
@@ -4878,6 +4907,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     exports.tokenizer = Tokenizer;
     exports.namespace = namespace;
     exports.tokenType = tokenType;
+    exports.scriptStates = scriptStates;
 
 }(typeof exports === 'object' && exports || this));
 
