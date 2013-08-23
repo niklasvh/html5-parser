@@ -81,12 +81,12 @@ function namespaceAttribute(namespace, key) {
 function serializeTree(tree, indentAmount) {
     var html = "";
     tree.forEach(function(token) {
-        switch(token.type) {
+        switch(token.nodeType) {
             case "Element":
-                html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespace) + token.tagName + ">";
+                html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespaceURI) + token.tagName + ">";
                 if (typeof(token.attributes) === "object") {
                     Object.keys(token.attributes).sort().forEach(function(key) {
-                        html += "| " + indent(" ", indentAmount + 2) + namespaceAttribute(token.namespace, key) + '="' + token.attributes[key] + '"';
+                        html += "| " + indent(" ", indentAmount + 2) + namespaceAttribute(token.namespaceURI, key) + '="' + token.attributes[key] + '"';
                     });
                 }
                 if (token.tagName === "template") {
