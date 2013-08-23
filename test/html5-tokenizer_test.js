@@ -104,7 +104,7 @@ function serializeTree(tree, indentAmount) {
                 html += '>';
                 break;
             case 3:
-                html +=  "| " + indent(" ", indentAmount) + '"' + token.text.replace(/(\n|\r)/g, "") + '"';
+                html +=  "| " + indent(" ", indentAmount) + '"' + token.data.replace(/(\n|\r)/g, "") + '"';
                 break;
             case 8:
                 html += "| " + indent(" ", indentAmount) + '<!-- ';
