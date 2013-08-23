@@ -82,7 +82,7 @@ function serializeTree(tree, indentAmount) {
     var html = "";
     tree.forEach(function(token) {
         switch(token.nodeType) {
-            case "Element":
+            case 1:
                 html += "| " + indent(" ", indentAmount) + "<" + getNamespace(token.namespaceURI) + token.tagName + ">";
                 if (typeof(token.attributes) === "object") {
                     Object.keys(token.attributes).sort().forEach(function(key) {
@@ -96,17 +96,17 @@ function serializeTree(tree, indentAmount) {
                     html += serializeTree(token.childNodes, indentAmount + 2);
                 }
                 break;
-            case "DOCTYPE":
+            case 10:
                 html +=  "| " + indent(" ", indentAmount) + '<!DOCTYPE ' + token.name;
                 if (token.publicId || token.systemId) {
                     html += ' "' + (token.publicId || "") + '" "' + (token.systemId || "") + '"';
                 }
                 html += '>';
                 break;
-            case "Character":
+            case 3:
                 html +=  "| " + indent(" ", indentAmount) + '"' + token.text.replace(/(\n|\r)/g, "") + '"';
                 break;
-            case "Comment":
+            case 8:
                 html += "| " + indent(" ", indentAmount) + '<!-- ';
                 html += token.data;
                 html += ' -->';
