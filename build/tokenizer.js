@@ -165,13 +165,13 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         return spaceCharacters.indexOf(token[1].charCodeAt(0)) === -1;
     }
 
-    function Node() {
+    function DummyNode() {
         this.childNodes = [];
         this.attributes = {};
         this.integrationPoint = null;
     }
 
-    Node.prototype.appendChild = function(child) {
+    DummyNode.prototype._appendChild = function(child) {
         this._checkParent(child);
         child.parentNode = this;
         if (child.nodeType === nodeType.TEXT_NODE) {
@@ -186,7 +186,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         }
     };
 
-    Node.prototype._checkParent = function(child) {
+    DummyNode.prototype._checkParent = function(child) {
         if (child.parentNode) {
             var index = -1;
             if (child.parentNode.childNodes.some(function(refNode) {
@@ -199,7 +199,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         }
     };
 
-    Node.prototype._insertAt = function(element, index) {
+    DummyNode.prototype._insertAt = function(element, index) {
         this._checkParent(element);
         element.parentNode = this;
         this.childNodes.splice(index, 0, element);
@@ -228,7 +228,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     };
 
     Constructor.prototype.createElement = function(type) {
-        var element = new Node();
+        var element = new DummyNode();
         element._tagName = type;
         element.nodeType = nodeType.ELEMENT_NODE;
         element.namespaceURI = namespace.HTML;
@@ -245,7 +245,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         };
     };
 
-    Constructor.prototype.appendChild = function(child) {
+    Constructor.prototype._appendChild = function(child) {
         child.parentNode = this;
         this.childNodes.push(child);
     };
@@ -332,7 +332,11 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } while(result !== false);
 
         if (this.options.type === "tree") {
-            addToken([tokenType.EOF]);
+            this.addToken([tokenType.EOF]);
+        }
+
+        if (this.options.complete) {
+            this.options.complete.call(this.options.document);
         }
     };
 
@@ -403,7 +407,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var first = null;
         markerIndex = markerIndex === -1 ? 0 : markerIndex;
         while((item = this.activeFormattingElements[markerIndex])) {
-            if (element._tagName === item._tagName && element.namespaceURI === item.namespaceURI && this.equalObjects(item.attributes, element.attributes)) {
+            if (element._tagName === item._tagName && element.namespaceURI === item.namespaceURI && this.equalObjects(this.getAttributes(item), this.getAttributes(element))) {
                 count++;
                 if (first === null) {
                     first = markerIndex;
@@ -459,7 +463,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
         while (true) {
             // 8. Create: Insert an HTML element for the token for which the element entry was created, to obtain new element.
-            newElement = this.insertHTMLElement(entry._tagName, entry.attributes);
+            newElement = this.insertHTMLElement(entry._tagName, this.getAttributes(entry));
 
             // 9. Replace the entry for entry in the list with an entry for new element.
             this.activeFormattingElements.splice(entryIndex, 1, newElement);
@@ -550,14 +554,27 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (count && this.currentNode().childNodes[count - 1].nodeType === nodeType.TEXT_NODE) {
                 this.currentNode().childNodes[count - 1].data += chr;
             } else {
-                this.currentNode().appendChild(new Text(chr));
+                this.currentNode()._appendChild(new Text(chr));
             }
         }
     };
 
+    Parser.prototype.setElementAttributes = function(attributes, element, overwrite) {
+        var elementAttributes = this.getAttributes(element);
+        Object.keys(attributes || {}).forEach(function(attributeName) {
+            if (overwrite || elementAttributes[attributeName] === undefined) {
+                elementAttributes[attributeName] = attributes[attributeName];
+            }
+        });
+    };
+
+    Parser.prototype.getAttributes = function(element) {
+        return element ? (element._parsedAttributes || element.attributes) : {};
+    };
+
     Parser.prototype.insertHTMLElement = function(type, attributes) {
         var element = this.constructor.createElement(type);
-        element.attributes = attributes || {};
+        this.setElementAttributes(attributes, element, true);
         this.insertNodeInAppropriatePlace(element);
         this.openElements.push(element);
         return element;
@@ -566,7 +583,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
     Parser.prototype.setIntegrationPoint = function(element) {
         var ns = element.namespaceURI,
             type = element._tagName,
-            attributes = element.attributes;
+            attributes = this.getAttributes(element);
         if (ns === namespace.MathML && (/^(mi|mo|mn|ms|mtext)$/).test(type))  {
             element.integrationPoint = this.integrationPoint.MathMLtext;
         } else if (ns === namespace.MathML && type === "annotation-xml" && (/^(text\/html|application\/xhtml\+xml|)$/i).test(attributes.encoding)) {
@@ -603,10 +620,10 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             return;
         } else if (this.isCommentToken(token)) {
-            this.constructor.appendChild(this.constructor.createComment(token[1]));
+            this.constructor._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             /* TODO doctype */
-            this.constructor.appendChild(this.constructor.createDocumentType(token[1], token[2], token[3]));
+            this.constructor._appendChild(this.constructor.createDocumentType(token[1], token[2], token[3]));
             this.mode = this.modes.before_html;
         } else {
             /* If the document is not an iframe srcdoc document, then this is a parse error; set the Document to quirks mode. */
@@ -621,21 +638,21 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isCommentToken(token)) {
-            this.constructor.appendChild(this.constructor.createComment(token[1]));
+            this.constructor._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             return;
         } else if (this.isStartTag(token, "html")) {
             element = this.constructor.createElement("html", token[2]);
-            element.attributes = token[2] || {};
+            this.setElementAttributes(token[2], element, true);
             this.openElements.push(element);
-            this.constructor.appendChild(element);
+            this.constructor._appendChild(element);
             this.mode = this.modes.before_head;
         } else if (token[0] === tokenType.endTag && !this.isEndTag(token, "head", "body", "html", "br")) {
             this.parseError();
         } else {
             element = this.constructor.createElement("html");
             this.openElements.push(element);
-            this.constructor.appendChild(element);
+            this.constructor._appendChild(element);
             this.mode = this.modes.before_head;
             this.addToken(token);
         }
@@ -645,7 +662,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             return;
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "html")) {
@@ -671,7 +688,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -746,7 +763,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -801,7 +818,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.insertCharacter(token[1]);
             this.frameSetOk = "not ok";
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -809,11 +826,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (this.lastOfTypeIn("template", this.openElements) !== null) {
                 return;
             }
-            Object.keys(token[2]).forEach(function(key) {
-                if (!self.openElements[0].attributes[key]) {
-                    self.openElements[0].attributes[key] = token[2][key];
-                }
-            });
+            this.setElementAttributes(token[2], self.openElements[0], false);
         } else if (this.isStartTag(token, "base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title") || this.isEndTag(token, "template")) {
             this.in_head(token);
         } else if (this.isStartTag(token, "body")) {
@@ -822,11 +835,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
              If the second element on the stack of open elements is not a body element, if the stack of open elements has only one node on it, or if there is a template element on the stack of open elements, then ignore the token. (fragment case)
              */
             this.frameSetOk = "not ok";
-            Object.keys(token[2]).forEach(function(key) {
-                if (!self.openElements[1].attributes[key]) {
-                    self.openElements[1].attributes[key] = token[2][key];
-                }
-            });
+            this.setElementAttributes(token[2], self.openElements[1], false);
         } else if(this.isStartTag(token, "frameset")) {
             this.parseError();
             if (this.openElements.length <= 1 || this.openElements[1]._tagName !== "body") {
@@ -1255,7 +1264,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         var self = this;
         var popped;
         var append = function(node) {
-            element.appendChild(node);
+            element._appendChild(node);
         };
 
         // 1. Let outer loop counter be zero.
@@ -1349,8 +1358,8 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
                 // 9.7 Create an element for the token for which the element node was created, with common ancestor as the intended parent;
                 element = this.constructor.createElement(node._tagName);
-                element.attributes = node.attributes || {};
-                commonAncestor.appendChild(element);
+                this.setElementAttributes(this.getAttributes(node), element, true);
+                commonAncestor._appendChild(element);
                 // replace the entry for node in the list of active formatting elements with an entry for the new element,
                 this.activeFormattingElements.splice(tmpIndex, 1, element);
                 // replace the entry for node in the stack of open elements with an entry for the new element
@@ -1366,7 +1375,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
                 }
 
                 // 9.9 Insert last node into node, first removing it from its previous parent node if any.
-                node.appendChild(lastNode);
+                node._appendChild(lastNode);
 
                 // 9.10 Let last node be node.
                 lastNode = node;
@@ -1375,13 +1384,13 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.insertNodeInAppropriatePlace(lastNode, commonAncestor);
             // 11. Create an element for the token for which the formatting element was created, with furthest block as the intended parent.
             element = this.constructor.createElement(formattingElement._tagName);
-            element.attributes = formattingElement.attributes || {};
+            this.setElementAttributes(this.getAttributes(formattingElement), element, true);
 
             // 12. Take all of the child nodes of the furthest block and append them to the element created in the last step.
             furthestBlock.childNodes.splice(0).forEach(append);
 
             // 13. Append that new element to the furthest block.
-            furthestBlock.appendChild(element);
+            furthestBlock._appendChild(element);
 
             // 14. Remove the formatting element from the list of active formatting elements,
             this.removeFrom(formattingElement, this.activeFormattingElements);
@@ -1549,7 +1558,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             var wasParserInserted = (script._parserInserted);
             script._parserInserted = false;
 
-            if (wasParserInserted && script.attributes.async === undefined) {
+            if (wasParserInserted && this.getAttributes(script).async === undefined) {
                 script._forceAsync = true;
             }
 
@@ -1570,7 +1579,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.mode = this.modes.in_table_text;
             this.addToken(token);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "caption")) {
@@ -1700,7 +1709,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -1890,7 +1899,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if(this.isCharacterToken(token)) {
             this.insertCharacter(token[1]);
         } else if(this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -2022,7 +2031,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.in_body(token);
         } else if (this.isCommentToken(token)) {
-            this.openElements[0].appendChild(this.constructor.createComment(token[1]));
+            this.openElements[0]._appendChild(this.constructor.createComment(token[1]));
         } else if(this.isDoctypeToken(token)) {
             this.parseError();
         } else if(this.isStartTag(token, "html")) {
@@ -2043,7 +2052,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if (this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "html")) {
@@ -2079,7 +2088,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         if (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) {
             this.insertCharacter(token[1]);
         } else if (this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token, "html")) {
@@ -2097,7 +2106,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.after_after_body = function(token) {
         if (this.isCommentToken(token)) {
-            this.constructor.appendChild(this.constructor.createComment(token[1]));
+            this.constructor._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token) || (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) || this.isStartTag(token, "html")) {
             this.in_body(token);
         } else if (this.isEOF(token)) {
@@ -2111,7 +2120,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
     Parser.prototype.after_after_frameset = function(token) {
         if (this.isCommentToken(token)) {
-            this.constructor.appendChild(this.constructor.createComment(token[1]));
+            this.constructor._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token) || (this.isCharacterToken(token) && this.characterOneOf(token, characters.TAB, characters.LF, characters.FF, characters.CR, characters.SPACE)) || this.isStartTag(token, "html")) {
             this.in_body(token);
         } else if (this.isEOF(token)) {
@@ -2134,7 +2143,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             this.insertCharacter(token[1]);
             this.frameSetOk = "not ok";
         } else if (this.isCommentToken(token)) {
-            this.currentNode().appendChild(this.constructor.createComment(token[1]));
+            this.currentNode()._appendChild(this.constructor.createComment(token[1]));
         } else if (this.isDoctypeToken(token)) {
             this.parseError();
         } else if (this.isStartTag(token,  "b", "big", "blockquote", "body", "br", "center", "code", "dd", "div", "dl", "dt", "em", "embed", "h1", "h2", "h3", "h4", "h5", "h6",
