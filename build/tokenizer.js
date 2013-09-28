@@ -179,7 +179,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (len && this.childNodes[len - 1].nodeType === nodeType.TEXT_NODE) {
                 this.childNodes[len - 1].data += child.data;
             } else {
-                this.childNodes.push(new Text(child.data));
+                this.childNodes.push(this.ownerDocument.createTextNode(child.data));
             }
         } else {
             this.childNodes.push(child);
@@ -205,11 +205,6 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         this.childNodes.splice(index, 0, element);
     };
 
-    function Text(chr) {
-        this.data = chr;
-        this.nodeType = nodeType.TEXT_NODE;
-    }
-
     function Constructor() {
         this.childNodes = [];
         this.namespaceURI = namespace.HTML;
@@ -232,6 +227,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         element._tagName = type;
         element.nodeType = nodeType.ELEMENT_NODE;
         element.namespaceURI = namespace.HTML;
+        element.ownerDocument = this;
         return element;
     };
 
@@ -242,6 +238,13 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             publicId: publicId,
             systemId: systemId,
             namespaceURI: namespace.HTML
+        };
+    };
+
+    Constructor.prototype.createTextNode = function(data) {
+        return {
+            data: data,
+            nodeType: nodeType.TEXT_NODE
         };
     };
 
@@ -547,14 +550,14 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
             if (len && fosterData.index && fosterData.foster.childNodes[fosterData.index - 1].nodeType === nodeType.TEXT_NODE) {
                 fosterData.foster.childNodes[fosterData.index - 1].data += chr;
             } else {
-                this.appendFoster(new Text(chr));
+                this.appendFoster(this.constructor.createTextNode(chr));
             }
         }  else {
             count = this.currentNode().childNodes.length;
             if (count && this.currentNode().childNodes[count - 1].nodeType === nodeType.TEXT_NODE) {
                 this.currentNode().childNodes[count - 1].data += chr;
             } else {
-                this.currentNode()._appendChild(new Text(chr));
+                this.currentNode()._appendChild(this.constructor.createTextNode(chr));
             }
         }
     };
