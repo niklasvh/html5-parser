@@ -627,6 +627,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
         } else if (this.isDoctypeToken(token)) {
             /* TODO doctype */
             this.constructor._appendChild(this.constructor.createDocumentType(token[1], token[2], token[3]));
+            this.constructor._quirksMode = token[4];
             this.mode = this.modes.before_html;
         } else {
             /* If the document is not an iframe srcdoc document, then this is a parse error; set the Document to quirks mode. */
