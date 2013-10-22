@@ -1,6 +1,6 @@
 'use strict';
 
-var html5_parser = require('../lib/tokenizer.js'),
+var html5_parser = require('../lib/main.js'),
     fs = require('fs');
 
 /*

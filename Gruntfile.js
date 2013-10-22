@@ -8,10 +8,10 @@ module.exports = function(grunt) {
         pkg: grunt.file.readJSON('package.json'),
         browserify: {
             files: {
-                src: ['lib/tokenizer.js'],
-                dest: 'build/tokenizer.js',
+                src: ['lib/main.js'],
+                dest: 'build/html5-parser.js',
                 options: {
-                    alias: ['lib/tokenizer.js:Parser']
+                    alias: ['lib/main.js:Parser']
                 }
             }
         },
@@ -27,8 +27,8 @@ module.exports = function(grunt) {
                 stripBanners: true
             },
             dist: {
-                src: ['build/tokenizer.js'],
-                dest: 'build/tokenizer.js'
+                src: ['build/html5-parser.js'],
+                dest: 'build/html5-parser.js'
             }
         },
         uglify: {
