@@ -1,6 +1,6 @@
 /*
   html5-parser 0.1.0 <https://github.com/niklasvh/html5-parser>
-  Copyright (c) 2013 Niklas von Hertzen
+  Copyright (c) 2014 Niklas von Hertzen
 
   Released under MIT License
 */
@@ -177,7 +177,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
 }(typeof exports === 'object' && exports || this));
 
-},{"./common.js":1}],"vvgNDv":[function(require,module,exports){
+},{"./common.js":1}],"V9DpGp":[function(require,module,exports){
 /*
  * html5-parser
  * https://github.com/niklasvh/html5-parser
@@ -198,9 +198,7 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 
 }(typeof exports === 'object' && exports || this));
 
-},{"./common.js":1,"./parser.js":5,"./tokenizer.js":6}],"Parser":[function(require,module,exports){
-module.exports=require('vvgNDv');
-},{}],5:[function(require,module,exports){
+},{"./common.js":1,"./parser.js":4,"./tokenizer.js":5}],4:[function(require,module,exports){
 (function(exports) {
   'use strict';
 
@@ -355,6 +353,7 @@ module.exports=require('vvgNDv');
 
     if (this.options.complete) {
       this.options.complete.call(this.options.document);
+      this.options.complete = null;
     }
   };
 
@@ -365,6 +364,14 @@ module.exports=require('vvgNDv');
   Parser.prototype.integrationPoint = {
     MathMLtext: 1,
     HTML: 2
+  };
+
+  Parser.prototype.openElementsPop = function() {
+    var pop = this.openElements.pop();
+    if (pop && pop._tagName === "style" && pop._updateStyleBlock) {
+      pop._updateStyleBlock();
+    }
+    return pop;
   };
 
   Parser.prototype.addToken = function(token) {
@@ -714,11 +721,11 @@ module.exports=require('vvgNDv');
       this.in_body(token);
     } else if (this.isStartTag(token, "base", "basefont", "bgsound", "link")) {
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
     } else if (this.isStartTag(token, "meta")) {
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
       /*
        If the element has a charset attribute, and getting an encoding from its value results in a supported ASCII-compatible character encoding or a UTF-16 encoding,
@@ -744,10 +751,10 @@ module.exports=require('vvgNDv');
       this.originalMode = this.mode;
       this.mode = this.modes.text;
     } else if (this.isEndTag(token, "head")) {
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.modes.after_head;
     } else if (this.isEndTag(token, "body", "html", "br")) {
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.modes.after_head;
       this.addToken(token);
     } else if (this.isStartTag(token, "template")) {
@@ -772,7 +779,7 @@ module.exports=require('vvgNDv');
     } else if (this.isStartTag(token, "head") || token[0] === tokenType.endTag) {
       this.parseError();
     } else {
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.modes.after_head;
       this.addToken(token);
     }
@@ -902,7 +909,7 @@ module.exports=require('vvgNDv');
       }
       if ((/^(h1|h2|h3|h4|h5|h6)$/).test(this.currentNode()._tagName)) {
         this.parseError();
-        this.openElements.pop();
+        this.openElementsPop();
       }
       this.insertHTMLElement(token[1], token[2]);
     } else if(this.isStartTag(token, "pre", "listing")) {
@@ -1022,7 +1029,7 @@ module.exports=require('vvgNDv');
           this.parseError();
         }
         this.popUntilOneOf("h1", "h2", "h3", "h4", "h5", "h6");
-        this.openElements.pop();
+        this.openElementsPop();
       }
     } else if (this.isStartTag(token, "a")) {
       index = this.getElementBetweenMarkerAndEnd("a");
@@ -1076,13 +1083,13 @@ module.exports=require('vvgNDv');
     } else if (this.isStartTag(token, "area", "br", "embed", "img", "keygen", "wbr")) {
       this.reconstructActiveFormatting();
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
       this.frameSetOk = "not ok";
     } else if (this.isStartTag(token, "input")) {
       this.reconstructActiveFormatting();
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
       if (!token[2].type || !(/^hidden$/i).test(token[2].type)) {
         this.frameSetOk = "not ok";
@@ -1090,14 +1097,14 @@ module.exports=require('vvgNDv');
       }
     } else if (this.isStartTag(token, "menuitem", "param", "source", "track")) {
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
     } else if (this.isStartTag(token, "hr")) {
       if (this.hasInButtonScope("p")) {
         this.closePElement();
       }
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
       this.frameSetOk = "not ok";
     } else if (this.isStartTag(token, "image")) {
@@ -1155,7 +1162,7 @@ module.exports=require('vvgNDv');
       }
     } else if (this.isStartTag(token, "optgroup", "option")) {
       if (this.currentNode()._tagName === "option") {
-        this.openElements.pop();
+        this.openElementsPop();
       }
       this.reconstructActiveFormatting();
       this.insertHTMLElement(token[1], token[2]);
@@ -1171,7 +1178,7 @@ module.exports=require('vvgNDv');
       this.parseError();
       this.reconstructActiveFormatting();
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       this.frameSetOk = "not ok";
     } else if (this.isStartTag(token, "math")) {
       this.reconstructActiveFormatting();
@@ -1181,7 +1188,7 @@ module.exports=require('vvgNDv');
        */
       this.insertForeignElement(token[1], this.adjustMathMLattributes(token[2]), namespace.MathML);
       if (token[3] === true) {
-        this.openElements.pop();
+        this.openElementsPop();
       }
     } else if (this.isStartTag(token, "svg")) {
       this.reconstructActiveFormatting();
@@ -1191,14 +1198,14 @@ module.exports=require('vvgNDv');
        */
       this.insertForeignElement(token[1], this.adjustSVGattributes(token[2]), namespace.SVG);
       if (token[3] === true) {
-        this.openElements.pop();
+        this.openElementsPop();
       }
     } else if (this.isStartTag(token, "caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr")) {
       this.parseError();
     } else if (this.isStartTag(token, "command")) {
       // NOT defined in spec???
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
     } else if (token[0] === tokenType.startTag) {
       this.reconstructActiveFormatting();
       this.insertHTMLElement(token[1], token[2]);
@@ -1233,7 +1240,7 @@ module.exports=require('vvgNDv');
     }
 
     while((/^(dd|dt|li|option|optgroup|p|rp|rt)$/).test(this.currentNode()._tagName) && except.indexOf(this.currentNode()._tagName) === -1) {
-      this.openElements.pop();
+      this.openElementsPop();
     }
   };
 
@@ -1335,7 +1342,7 @@ module.exports=require('vvgNDv');
       // 6. If there is no furthest block, then the UA must first pop all the nodes from the bottom of the stack of open elements, from the current node up to and including the formatting element,
       // then remove the formatting element from the list of active formatting elements, and finally abort these steps.
       if (!furthestBlock) {
-        while((popped = this.openElements.pop()) !== formattingElement && popped !== undefined) {}
+        while((popped = this.openElementsPop()) !== formattingElement && popped !== undefined) {}
         this.removeFrom(formattingElement, this.activeFormattingElements);
         return;
       }
@@ -1557,7 +1564,7 @@ module.exports=require('vvgNDv');
       if (this.currentNode()._tagName === "script") {
         this.currentNode()._alreadyStarted = true;
       }
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.originalMode;
       this.addToken(token);
     } else if (this.isEndTag(token, "script")) {
@@ -1567,7 +1574,7 @@ module.exports=require('vvgNDv');
        */
       var script = this.currentNode();
 
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.originalMode;
 
       if (script._alreadyStarted) {
@@ -1586,7 +1593,7 @@ module.exports=require('vvgNDv');
       }
       // TODO  http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#prepare-a-script
     } else if (token[0] === tokenType.endTag) {
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.originalMode;
     }
   };
@@ -1649,14 +1656,14 @@ module.exports=require('vvgNDv');
       } else {
         this.parseError();
         this.insertHTMLElement(token[1], token[2]);
-        this.openElements.pop();
+        this.openElementsPop();
         // Acknowledge the token's self-closing flag, if it is set.
       }
     } else if (this.isStartTag(token, "form")) {
       this.parseError();
       if (this.formElementPointer === null) {
         this.formElementPointer = this.insertHTMLElement(token[1], token[2]);
-        this.openElements.pop();
+        this.openElementsPop();
       }
     } else if (this.isEOF(token)) {
       this.in_body(token);
@@ -1735,7 +1742,7 @@ module.exports=require('vvgNDv');
       this.in_body(token);
     } else if(this.isStartTag(token, "col")) {
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
     } else if (this.isEndTag(token, "colgroup")) {
       this.closeColumnGroup();
@@ -1755,7 +1762,7 @@ module.exports=require('vvgNDv');
   Parser.prototype.closeColumnGroup = function() {
     var node = this.currentNode();
     if (node && node._tagName === "colgroup") {
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.modes.in_table;
       return true;
     }
@@ -1780,7 +1787,7 @@ module.exports=require('vvgNDv');
         this.parseError();
       } else {
         this.clearStackBackToTableContext();
-        this.openElements.pop();
+        this.openElementsPop();
         this.mode = this.modes.in_table;
         this.addToken(token);
       }
@@ -1800,7 +1807,7 @@ module.exports=require('vvgNDv');
       this.parseError();
     } else {
       this.clearStackBackToTableContext();
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.modes.in_table;
     }
   };
@@ -1818,7 +1825,7 @@ module.exports=require('vvgNDv');
         this.parseError();
       } else {
         this.clearStackBackToTableRowContext();
-        this.openElements.pop();
+        this.openElementsPop();
         this.mode = this.modes.in_table_body;
         this.addToken(token);
       }
@@ -1827,7 +1834,7 @@ module.exports=require('vvgNDv');
         this.parseError();
       } else if (this.hasInTableScope("tr")) {
         this.clearStackBackToTableRowContext();
-        this.openElements.pop();
+        this.openElementsPop();
         this.mode = this.modes.in_table_body;
         this.addToken(token);
       }
@@ -1848,7 +1855,7 @@ module.exports=require('vvgNDv');
       return false;
     } else {
       this.clearStackBackToTableRowContext();
-      this.openElements.pop();
+      this.openElementsPop();
       this.mode = this.modes.in_table_body;
       return true;
     }
@@ -1888,7 +1895,7 @@ module.exports=require('vvgNDv');
       this.parseError();
     }
     this.popUntilOneOf("td", "th");
-    this.openElements.pop();
+    this.openElementsPop();
     this.clearUntilLastMarker();
     this.mode = this.modes.in_row;
   };
@@ -1925,29 +1932,29 @@ module.exports=require('vvgNDv');
       this.in_body(token);
     } else if(this.isStartTag(token, "option")) {
       if (this.currentNode()._tagName === "option") {
-        this.openElements.pop();
+        this.openElementsPop();
       }
       this.insertHTMLElement(token[1], token[2]);
     } else if (this.isStartTag(token, "optgroup")) {
       if (this.currentNode()._tagName === "option") {
-        this.openElements.pop();
+        this.openElementsPop();
       }
       if (this.currentNode()._tagName === "optgroup") {
-        this.openElements.pop();
+        this.openElementsPop();
       }
       this.insertHTMLElement(token[1], token[2]);
     } else if (this.isEndTag(token, "optgroup")) {
       if (this.currentNode()._tagName === "option" && this.openElements.length >= 2 && this.openElements[this.openElements.length - 2]._tagName === "optgroup" ) {
-        this.openElements.pop();
+        this.openElementsPop();
       }
       if (this.currentNode()._tagName === "optgroup") {
-        this.openElements.pop();
+        this.openElementsPop();
       } else {
         this.parseError();
       }
     } else if (this.isEndTag(token, "option")) {
       if (this.currentNode()._tagName === "option") {
-        this.openElements.pop();
+        this.openElementsPop();
       } else {
         this.parseError();
       }
@@ -2082,7 +2089,7 @@ module.exports=require('vvgNDv');
       if (this.currentNode()._tagName === "html") {
         this.parseError();
       } else {
-        this.openElements.pop();
+        this.openElementsPop();
         if (!this.fragmentCase) {
           // If the parser was not originally created as part of the HTML fragment parsing algorithm (fragment case), and the current node is no longer a frameset element, then switch the insertion mode to "after frameset".
           this.mode = this.modes.after_frameset;
@@ -2090,7 +2097,7 @@ module.exports=require('vvgNDv');
       }
     } else if (this.isStartTag(token, "frame")) {
       this.insertHTMLElement(token[1], token[2]);
-      this.openElements.pop();
+      this.openElementsPop();
       // Acknowledge the token's self-closing flag, if it is set.
     } else if (this.isStartTag(token, "noframes")) {
       this.in_head(token);
@@ -2172,7 +2179,7 @@ module.exports=require('vvgNDv');
       // If the parser was originally created for the HTML fragment parsing algorithm, then act as described in the "any other start tag" entry below. (fragment case)
       var currentNode = this.currentNode();
       while(currentNode.integrationPoint !== this.integrationPoint.MathMLtext && currentNode.integrationPoint !== this.integrationPoint.HTML && currentNode.namespaceURI !== namespace.HTML) {
-        this.openElements.pop();
+        this.openElementsPop();
         currentNode = this.currentNode();
       }
       this.addToken(token);
@@ -2197,12 +2204,12 @@ module.exports=require('vvgNDv');
            Acknowledge the token's self-closing flag, and then act as if an end tag with the tag name "script" had been seen.
            */
         } else {
-          this.openElements.pop();
+          this.openElementsPop();
           //   Pop the current node off the stack of open elements and acknowledge the token's self-closing flag.
         }
       }
     } else if (this.isEndTag(token, "script") && this.currentNode()._tagName === "script" && this.currentNode().namespaceURI === namespace.SVG) {
-      this.openElements.pop();
+      this.openElementsPop();
       /*
        Let the old insertion point have the same value as the current insertion point. Let the insertion point be just before the next input character.
 
@@ -2238,7 +2245,7 @@ module.exports=require('vvgNDv');
 
   Parser.prototype.popUntil = function(_tagName) {
     while(this.openElements.length) {
-      if (this.openElements.pop()._tagName === _tagName) {
+      if (this.openElementsPop()._tagName === _tagName) {
         break;
       }
     }
@@ -2250,7 +2257,7 @@ module.exports=require('vvgNDv');
       if (_tagNames.indexOf(this.currentNode()._tagName) !== -1) {
         return;
       }
-      this.openElements.pop();
+      this.openElementsPop();
     }
   };
 
@@ -2509,7 +2516,7 @@ module.exports=require('vvgNDv');
 
 }(typeof exports === 'object' && exports || this));
 
-},{"./common.js":1,"./constructor.js":2,"./tokenizer.js":6}],6:[function(require,module,exports){
+},{"./common.js":1,"./constructor.js":2,"./tokenizer.js":5}],5:[function(require,module,exports){
 (function(exports) {
   'use strict';
 
@@ -4972,6 +4979,8 @@ module.exports=require('vvgNDv');
 
 }(typeof exports === 'object' && exports || this));
 
-},{"./common.js":1}]},{},["vvgNDv"])
+},{"./common.js":1}],"Parser":[function(require,module,exports){
+module.exports=require('V9DpGp');
+},{}]},{},["V9DpGp"])
 ;window.Parser = require("Parser").Parser;
 })(window, document);
