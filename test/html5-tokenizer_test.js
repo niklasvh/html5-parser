@@ -3,26 +3,6 @@
 var html5_parser = require('../lib/main.js'),
     fs = require('fs');
 
-/*
-  ======== A Handy Little Nodeunit Reference ========
-  https://github.com/caolan/nodeunit
-
-  Test methods:
-    test.expect(numAssertions)
-    test.done()
-  Test assertions:
-    test.ok(value, [message])
-    test.equal(actual, expected, [message])
-    test.notEqual(actual, expected, [message])
-    test.deepEqual(actual, expected, [message])
-    test.notDeepEqual(actual, expected, [message])
-    test.strictEqual(actual, expected, [message])
-    test.notStrictEqual(actual, expected, [message])
-    test.throws(block, [error], [message])
-    test.doesNotThrow(block, [error], [message])
-    test.ifError(value)
-*/
-
 exports['tokenizer'] = {
     setUp: function(done) {
         // setup here
@@ -204,13 +184,16 @@ function createTreeTest(buffer) {
                     type: "tree"
                 };
 
+                var parser = new html5_parser.Parser(testCase.data, options);
                 if (testCase.fragment) {
-                    options.fragment = testCase.fragment;
+                    var root = parser.parseHTMLFragment({_tagName: testCase.fragment, tagName: testCase.fragment.toUpperCase(), namespaceURI: "http://www.w3.org/1999/xhtml"});
+                    test.deepEqual(serializeTree(root.childNodes, 0), testCase.result);
+                } else {
+                    parser.run();
+                    test.deepEqual(serializeTree(parser.constructor.childNodes, 0), testCase.result, testCase.data);
                 }
 
-                var parser = new html5_parser.Parser(testCase.data, options);
-                parser.run();
-                test.deepEqual(serializeTree(parser.constructor.childNodes, 0), testCase.result, testCase.data);
+
             });
 
             test.done();
